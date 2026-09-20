@@ -1,0 +1,10 @@
+[package]
+name = "abstraction-credentials-api"
+version = "0.0.0"
+edition = "2021"
+description = "Generated OpenAbstractions credentials holder and applier Rust service protocol"
+[lib]
+path = "../rs/abstraction/credentials/api/rec.rs"
+
+[dependencies]
+abstraction-frame = { path = "../../abstraction-identity/rust-frame" }

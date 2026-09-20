@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abstraction-credentials-protocol"
+version = "0.0.0"
+description = "Generated OpenAbstractions credentials holder and applier protocol types and service clients"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["abstraction.credentials*"]
+namespaces = true

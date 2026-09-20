@@ -1,0 +1,32 @@
+cmake_minimum_required(VERSION 3.16)
+project(abstraction_credentials_api VERSION 0.1.0 LANGUAGES CXX)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+# Generated holder and applier records, codecs and clients, and the typed
+# Holder and Applier over the shared IPC transport.
+if(NOT TARGET abstraction::ipc)
+ find_package(abstraction_ipc CONFIG QUIET)
+endif()
+if(NOT TARGET abstraction::ipc AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../abstraction-identity/cpp/CMakeLists.txt")
+ add_subdirectory(../../abstraction-identity/cpp abstraction_ipc-build)
+endif()
+if(NOT TARGET abstraction::ipc)
+ message(FATAL_ERROR "Install abstraction_ipc or provide sibling abstraction-identity. Nothing is fetched.")
+endif()
+add_library(abstraction_credentials_api INTERFACE)
+add_library(abstraction::credentials_api ALIAS abstraction_credentials_api)
+set_target_properties(abstraction_credentials_api PROPERTIES EXPORT_NAME credentials_api)
+target_compile_features(abstraction_credentials_api INTERFACE cxx_std_17)
+target_include_directories(abstraction_credentials_api INTERFACE
+ $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+ $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+ $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_link_libraries(abstraction_credentials_api INTERFACE abstraction::ipc)
+install(TARGETS abstraction_credentials_api EXPORT abstraction_credentials_apiTargets)
+install(DIRECTORY abstraction/credentials/api DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/abstraction/credentials)
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+set(config_dir ${CMAKE_INSTALL_LIBDIR}/cmake/abstraction_credentials_api)
+install(EXPORT abstraction_credentials_apiTargets NAMESPACE abstraction:: DESTINATION ${config_dir})
+configure_package_config_file(cmake/abstraction_credentials_apiConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfig.cmake INSTALL_DESTINATION ${config_dir})
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfigVersion.cmake VERSION 0.1.0 COMPATIBILITY SameMinorVersion)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfigVersion.cmake DESTINATION ${config_dir})
