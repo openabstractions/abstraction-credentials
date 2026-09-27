@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"os/user"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -40,6 +39,11 @@ type Host struct {
 	OnError   func(error)
 	// Assign before Serve. Called when admission stops, before calls drain.
 	OnStopped func()
+	// OnStored observes an authorized successful Store, after persistence and
+	// before replying. Assign before Serve. Only the bound subject and credential
+	// name are passed; secrets remain in the holder. Observer failures go to
+	// OnError and do not undo the stored credential.
+	OnStored func(context.Context, wire.Subject, string) error
 }
 
 // Listen requires an explicit holder and decision function. A nil enforcer
@@ -55,12 +59,12 @@ func Listen(endpoint string, holder *credentials.Holder, decide credentials.Deci
 	if owner.Uid == "" {
 		return nil, errors.New("credentials service: service principal unavailable")
 	}
-	l, err := listen.Listen(endpoint)
+	l, err := listen.ListenFramed(endpoint, listen.Program)
 	if err != nil {
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Host{listener: l, owner: owner.Uid, holder: holder, decide: decide, enforcer: enforcer, ctx: ctx, cancel: cancel, slots: make(chan struct{}, 32)}, nil
+	return &Host{listener: listen.Sessions(l, listen.SessionOptions{MaxSessions: 32}), owner: owner.Uid, holder: holder, decide: decide, enforcer: enforcer, ctx: ctx, cancel: cancel, slots: make(chan struct{}, 32)}, nil
 }
 
 // ApplierAvailable reports whether an enforcer designation is configured.
@@ -80,6 +84,7 @@ func (h *Host) Serve(ctx context.Context) error {
 	}
 	h.serving = true
 	h.lifecycle.Unlock()
+	//unchecked: Close is idempotent (sync.Once); this async cancellation callback has no caller to report the error to, and Serve's own deferred Close below is the same no-op afterward
 	stop := context.AfterFunc(ctx, func() { h.Close() })
 	defer stop()
 	defer h.workers.Wait()
@@ -100,6 +105,7 @@ func (h *Host) Serve(ctx context.Context) error {
 		select {
 		case h.slots <- struct{}{}:
 		default:
+			//unchecked: dropping a connection because the worker slots are full; nothing here can act on a failed close of the connection it is already refusing
 			conn.Close()
 			continue
 		}
@@ -251,7 +257,13 @@ func (r *holderReceiver) Store(expected string, reg wire.Registration) (wire.Sto
 		zero(reg.Secret)
 		return wire.StoreResult{Outcome: storeRefusal(refusal)}, nil
 	}
-	return r.host.holder.Store(subject, expected, reg), nil
+	result := r.host.holder.Store(subject, expected, reg)
+	if result.Outcome == wire.StoreOutcomeStored && r.host.OnStored != nil {
+		if err := r.host.OnStored(r.ctx, subject, reg.Name); err != nil && r.host.OnError != nil {
+			r.host.OnError(err)
+		}
+	}
+	return result, nil
 }
 
 func (r *holderReceiver) Rotate(expected string, rotation wire.Rotation) (wire.RotateResult, error) {
@@ -290,7 +302,7 @@ func (r *holderReceiver) Audit(cursor string, maxEntries int64) (wire.AuditPage,
 type applierReceiver struct{ receiver }
 
 func (r *applierReceiver) designated(use wire.Use) bool {
-	if runtime.GOOS == "darwin" || r.host.enforcer == nil {
+	if r.host.enforcer == nil {
 		return false
 	}
 	_, peer, ok := r.caller()

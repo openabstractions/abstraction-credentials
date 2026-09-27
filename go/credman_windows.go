@@ -64,6 +64,7 @@ func (credentialManager) Put(key string, secret []byte) error {
 	if err != nil {
 		return fmt.Errorf("%w: target name", ErrUnavailable)
 	}
+	//unchecked: UTF16PtrFromString only fails on an embedded NUL, and this source is a fixed literal
 	user, _ := windows.UTF16PtrFromString("openabstractions")
 	cred := credentialW{Type: credTypeGeneric, TargetName: target, CredentialBlobSize: uint32(len(secret)),
 		CredentialBlob: &secret[0], Persist: credPersistLocalMachine, UserName: user}

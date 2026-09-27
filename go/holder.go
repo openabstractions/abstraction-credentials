@@ -219,6 +219,7 @@ func (h *Holder) save() error {
 		return err
 	}
 	name := tmp.Name()
+	//unchecked: best-effort permission tightening; CreateTemp's own default mode is already private on every supported platform
 	_ = tmp.Chmod(0o600)
 	if _, err = tmp.Write(data); err == nil {
 		err = tmp.Sync()
@@ -230,6 +231,7 @@ func (h *Holder) save() error {
 		err = os.Rename(name, h.cfg.StatePath)
 	}
 	if err != nil {
+		//unchecked: best-effort temp-file cleanup on a path that already returns a definite error
 		os.Remove(name)
 	}
 	return err
