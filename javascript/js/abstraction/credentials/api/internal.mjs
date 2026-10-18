@@ -249,6 +249,28 @@ export const ApplyOutcome = Object.freeze({
   Unavailable: "unavailable",
 });
 
+export const SecretReadOutcome = Object.freeze({
+  Read: "read",
+  Unknown: "unknown",
+  Expired: "expired",
+  Revoked: "revoked",
+  Lost: "lost",
+  Invalid: "invalid",
+  Forbidden: "forbidden",
+  Unavailable: "unavailable",
+  Conflict: "conflict",
+  UnsupportedKind: "unsupported_kind",
+});
+
+export const MetadataReadOutcome = Object.freeze({
+  Found: "found",
+  Unknown: "unknown",
+  Invalid: "invalid",
+  Forbidden: "forbidden",
+  Unavailable: "unavailable",
+  Conflict: "conflict",
+});
+
 export const ServiceErrorCode = Object.freeze({
   HandlerError: "handler_error",
   InvalidResult: "invalid_result",
@@ -260,9 +282,9 @@ export const ServiceErrorCode = Object.freeze({
 
 export const credentialKinds = ["bearer", "header"];
 
-export const resourceActions = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply"];
+export const resourceActions = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"];
 
-export const executionGuarantees = ["abstraction.download/credentials@1"];
+export const executionGuarantees = ["abstraction.download/credentials@1", "abstraction.download/credentials@2"];
 
 export const consumers = ["abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"];
 
@@ -748,6 +770,18 @@ function writeUse(out, v, depth) {
   out.byte(0x7d);
 }
 
+function writeCredentialResource(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "name");
+  out.ascii(": ");
+  esc(out, v.name);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
 function writeCheckResult(out, v, depth) {
     if (typeof v.outcome !== "string") throw new Refusal("wrong_type",0);
     if (v.outcome !== "applied" && v.outcome !== "unknown" && v.outcome !== "expired" && v.outcome !== "revoked" && v.outcome !== "lost" && v.outcome !== "not_permitted" && v.outcome !== "target_refused" && v.outcome !== "consumer_refused" && v.outcome !== "unsupported_kind" && v.outcome !== "invalid" && v.outcome !== "forbidden" && v.outcome !== "unavailable") { throw new Refusal("bad_enum",0); }
@@ -790,6 +824,74 @@ function writeApplyResult(out, v, depth) {
     esc(out, "headers");
     out.ascii(": ");
     strmap(out, v.headers, depth + 1);
+  }
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeSecretValue(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "name");
+  out.ascii(": ");
+  esc(out, v.name);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "revision");
+  out.ascii(": ");
+  esc(out, v.revision);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "secret");
+  out.ascii(": ");
+  esc(out, encodeBinary(v.secret));
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeSecretReadResult(out, v, depth) {
+    if (typeof v.outcome !== "string") throw new Refusal("wrong_type",0);
+    if (v.outcome !== "read" && v.outcome !== "unknown" && v.outcome !== "expired" && v.outcome !== "revoked" && v.outcome !== "lost" && v.outcome !== "invalid" && v.outcome !== "forbidden" && v.outcome !== "unavailable" && v.outcome !== "conflict" && v.outcome !== "unsupported_kind") { throw new Refusal("bad_enum",0); }
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "outcome");
+  out.ascii(": ");
+  esc(out, v.outcome);
+  if (v.value !== undefined && v.value !== null) {
+    out.byte(0x2c);
+    out.byte(0x0a);
+    pad(out, depth + 1);
+    esc(out, "value");
+    out.ascii(": ");
+    writeSecretValue(out, v.value, depth + 1);
+  }
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeMetadataReadResult(out, v, depth) {
+    if (typeof v.outcome !== "string") throw new Refusal("wrong_type",0);
+    if (v.outcome !== "found" && v.outcome !== "unknown" && v.outcome !== "invalid" && v.outcome !== "forbidden" && v.outcome !== "unavailable" && v.outcome !== "conflict") { throw new Refusal("bad_enum",0); }
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "outcome");
+  out.ascii(": ");
+  esc(out, v.outcome);
+  if (v.current !== undefined && v.current !== null) {
+    out.byte(0x2c);
+    out.byte(0x0a);
+    pad(out, depth + 1);
+    esc(out, "current");
+    out.ascii(": ");
+    writeMetadata(out, v.current, depth + 1);
   }
   out.byte(0x0a);
   pad(out, depth);
@@ -899,6 +1001,108 @@ function writeOAApplierCheckArguments(out, v, depth) {
 }
 
 function writeOAApplierApplyArguments(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "usage");
+  out.ascii(": ");
+  writeUse(out, v.usage, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOASecretReaderReadArguments(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "name");
+  out.ascii(": ");
+  esc(out, v.name);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderStoreArguments(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "expected_revision");
+  out.ascii(": ");
+  esc(out, v.expectedRevision);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "registration");
+  out.ascii(": ");
+  writeRegistration(out, v.registration, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderRotateArguments(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "expected_revision");
+  out.ascii(": ");
+  esc(out, v.expectedRevision);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "rotation");
+  out.ascii(": ");
+  writeRotation(out, v.rotation, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderRevokeArguments(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "expected_revision");
+  out.ascii(": ");
+  esc(out, v.expectedRevision);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "name");
+  out.ascii(": ");
+  esc(out, v.name);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderMetadataArguments(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "name");
+  out.ascii(": ");
+  esc(out, v.name);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedApplierCheckArguments(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "usage");
+  out.ascii(": ");
+  writeUse(out, v.usage, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedApplierApplyArguments(out, v, depth) {
   out.byte(0x7b);
   out.byte(0x0a);
   pad(out, depth + 1);
@@ -1078,6 +1282,90 @@ function writeOAApplierApplyResult(out, v, depth) {
   out.byte(0x7d);
 }
 
+function writeOASecretReaderReadResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeSecretReadResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderStoreResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeStoreResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderRotateResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeRotateResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderRevokeResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeRevokeResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedHolderMetadataResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeMetadataReadResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedApplierCheckResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeCheckResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAScopedApplierApplyResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeApplyResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
 export function encode(v) {
   const out = new Out();
   writeRegistration(out, v, 0);
@@ -1131,7 +1419,7 @@ function validUtf8(b) {
 }
 
 class Reader {
-  constructor(buf) { this.buf = buf; this.pos = 0; this.depth = 0; }
+  constructor(buf) { this.buf = buf; this.pos = 0; this.depth = 0; this.limit = DEPTH_LIMIT; }
 
   refuse(word) { return new Refusal(word, this.pos); }
 
@@ -1143,7 +1431,7 @@ class Reader {
 
   enter() {
     this.depth++;
-    if (this.depth > DEPTH_LIMIT) throw this.refuse("depth_exceeded");
+    if (this.depth > this.limit) throw this.refuse("depth_exceeded");
   }
 
   string() {
@@ -1604,6 +1892,21 @@ export function newUse() {
   return { subject: newSubject(), consumer: "", name: "", target: "", challenge: "" };
 }
 
+// An account-owned credential name slot. name is 1..64 ASCII letters, digits,
+// '_', '.' or '-'; the old exact rights resource is credential:<name>.
+// Account/program bind separately at the receiving boundary. The canonical
+// generated document is the target of named-secret@1 and named-use@2, whose
+// collection is saved application credentials of kinds accepted by Store;
+// runtime local-key@1 records are excluded. named-use@1 retains its original
+// exact route. Name grants follow the current slot, including rotation and a
+// recreated registration's current restrictions. Read discloses the current
+// value to the bound requesting program under a distinct permission. Management
+// operations convey only their explicit supported effects. Every target
+// operation revalidates current membership, state and expiry after waits.
+export function newCredentialResource() {
+  return { name: "" };
+}
+
 // applied means Apply with the same Use would carry headers now. revision is
 // present for evaluated records. No secret is read for a check.
 export function newCheckResult() {
@@ -1624,6 +1927,38 @@ export function newCheckResult() {
 // not be reached; nothing was applied.
 export function newApplyResult() {
   return { outcome: "", revision: "", headers: {} };
+}
+
+// Successful reader@1 response only. name is the requested canonical slot and
+// revision is the actual current record revision. secret is a fresh copy of
+// 1..4096 bytes, within the configured store's limit. The receiving application
+// owns this returned copy and clears it after use; no client/provider retains
+// or logs it. No metadata, audit, history, error, Asks record or diagnostic
+// contains the value or a derivative.
+export function newSecretValue() {
+  return { name: "", revision: "", secret: new Uint8Array(0) };
+}
+
+// value is present exactly for read. Every refusal has no name, revision, value
+// or derived byte data. Native recipient and explicit Read authority are
+// checked before any existence/state disclosure and again before returning
+// bytes or a state-bearing result. forbidden covers absent authority and an
+// unproven/foreign recipient. conflict means the selected policy snapshot
+// became stale; no bytes are returned. Runtime-managed local-key@1 is outside
+// this collection and reads unsupported_kind only after authorization.
+// Consumer/website restrictions constrain service-mediated Use; raw Read
+// explicitly exports the value to the requesting application.
+export function newSecretReadResult() {
+  return { outcome: "", value: null };
+}
+
+// found carries only the authorized name's current metadata, including an
+// expired/lost record or a tombstone inside retention. Other outcomes carry no
+// current or revision. This lookup supports conditional-edit reconciliation
+// without account List/Audit access. Runtime-managed records are outside the
+// collection and read forbidden.
+export function newMetadataReadResult() {
+  return { outcome: "", current: null };
 }
 
 function newOAHolderStoreArguments() {
@@ -1651,6 +1986,34 @@ function newOAApplierCheckArguments() {
 }
 
 function newOAApplierApplyArguments() {
+  return { usage: newUse() };
+}
+
+function newOASecretReaderReadArguments() {
+  return { name: "" };
+}
+
+function newOAScopedHolderStoreArguments() {
+  return { expectedRevision: "", registration: newRegistration() };
+}
+
+function newOAScopedHolderRotateArguments() {
+  return { expectedRevision: "", rotation: newRotation() };
+}
+
+function newOAScopedHolderRevokeArguments() {
+  return { expectedRevision: "", name: "" };
+}
+
+function newOAScopedHolderMetadataArguments() {
+  return { name: "" };
+}
+
+function newOAScopedApplierCheckArguments() {
+  return { usage: newUse() };
+}
+
+function newOAScopedApplierApplyArguments() {
   return { usage: newUse() };
 }
 
@@ -1691,6 +2054,34 @@ function newOAApplierCheckResult() {
 }
 
 function newOAApplierApplyResult() {
+  return { value: newApplyResult() };
+}
+
+function newOASecretReaderReadResult() {
+  return { value: newSecretReadResult() };
+}
+
+function newOAScopedHolderStoreResult() {
+  return { value: newStoreResult() };
+}
+
+function newOAScopedHolderRotateResult() {
+  return { value: newRotateResult() };
+}
+
+function newOAScopedHolderRevokeResult() {
+  return { value: newRevokeResult() };
+}
+
+function newOAScopedHolderMetadataResult() {
+  return { value: newMetadataReadResult() };
+}
+
+function newOAScopedApplierCheckResult() {
+  return { value: newCheckResult() };
+}
+
+function newOAScopedApplierApplyResult() {
   return { value: newApplyResult() };
 }
 
@@ -2346,6 +2737,41 @@ function readUse(r) {
   return v;
 }
 
+function readCredentialResource(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newCredentialResource();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "name") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.name = r.string();
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
 function readCheckResult(r) {
   if (r.at() !== 0x7b) throw r.refuse("wrong_type");
   r.enter();
@@ -2427,6 +2853,129 @@ function readApplyResult(r) {
   r.depth--;
   if (((seen & 3) >>> 0) !== 3) throw r.refuse("missing_field");
     if (v.outcome !== "applied" && v.outcome !== "unknown" && v.outcome !== "expired" && v.outcome !== "revoked" && v.outcome !== "lost" && v.outcome !== "not_permitted" && v.outcome !== "target_refused" && v.outcome !== "consumer_refused" && v.outcome !== "unsupported_kind" && v.outcome !== "invalid" && v.outcome !== "forbidden" && v.outcome !== "unavailable") { throw r.refuse("bad_enum"); }
+  return v;
+}
+
+function readSecretValue(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newSecretValue();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "name") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.name = r.string();
+      } else if (key === "revision") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.revision = r.string();
+      } else if (key === "secret") {
+        if (seen & 4) throw r.refuse("duplicate_field");
+        seen |= 4;
+        v.secret = readBinary(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 7) >>> 0) !== 7) throw r.refuse("missing_field");
+  return v;
+}
+
+function readSecretReadResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newSecretReadResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "outcome") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.outcome = r.string();
+      } else if (key === "value") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.value = readSecretValue(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+    if (v.outcome !== "read" && v.outcome !== "unknown" && v.outcome !== "expired" && v.outcome !== "revoked" && v.outcome !== "lost" && v.outcome !== "invalid" && v.outcome !== "forbidden" && v.outcome !== "unavailable" && v.outcome !== "conflict" && v.outcome !== "unsupported_kind") { throw r.refuse("bad_enum"); }
+  return v;
+}
+
+function readMetadataReadResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newMetadataReadResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "outcome") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.outcome = r.string();
+      } else if (key === "current") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.current = readMetadata(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+    if (v.outcome !== "found" && v.outcome !== "unknown" && v.outcome !== "invalid" && v.outcome !== "forbidden" && v.outcome !== "unavailable" && v.outcome !== "conflict") { throw r.refuse("bad_enum"); }
   return v;
 }
 
@@ -2665,6 +3214,263 @@ function readOAApplierApplyArguments(r) {
   r.enter();
   r.pos++;
   const v = newOAApplierApplyArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "usage") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.usage = readUse(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOASecretReaderReadArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOASecretReaderReadArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "name") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.name = r.string();
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderStoreArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderStoreArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "expected_revision") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.expectedRevision = r.string();
+      } else if (key === "registration") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.registration = readRegistration(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 3) >>> 0) !== 3) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderRotateArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderRotateArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "expected_revision") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.expectedRevision = r.string();
+      } else if (key === "rotation") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.rotation = readRotation(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 3) >>> 0) !== 3) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderRevokeArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderRevokeArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "expected_revision") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.expectedRevision = r.string();
+      } else if (key === "name") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.name = r.string();
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 3) >>> 0) !== 3) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderMetadataArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderMetadataArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "name") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.name = r.string();
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedApplierCheckArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedApplierCheckArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "usage") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.usage = readUse(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedApplierApplyArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedApplierApplyArguments();
   let seen = 0;
   r.ws();
   if (r.at() !== 0x7d) {
@@ -3077,6 +3883,251 @@ function readOAApplierApplyResult(r) {
   return v;
 }
 
+function readOASecretReaderReadResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOASecretReaderReadResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readSecretReadResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderStoreResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderStoreResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readStoreResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderRotateResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderRotateResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readRotateResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderRevokeResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderRevokeResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readRevokeResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedHolderMetadataResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedHolderMetadataResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readMetadataReadResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedApplierCheckResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedApplierCheckResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readCheckResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAScopedApplierApplyResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAScopedApplierApplyResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readApplyResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
 export function decode(data) {
   const r = new Reader(data);
   r.ws();
@@ -3160,8 +4211,12 @@ _serviceRecords["MetadataPage"] = [["outcome","string","never"],["limits","Limit
 _serviceRecords["AuditEntry"] = [["sequence","i64","never"],["time","string","never"],["event","string","never"],["name","string","never"],["revision","string","never"],["subject","Subject","absent"],["consumer","string","absent"],["target","string","absent"],["outcome","string","absent"],];
 _serviceRecords["AuditPage"] = [["outcome","string","never"],["entries","list<AuditEntry>","never"],["next","string","never"],["atEnd","bool","never"],];
 _serviceRecords["Use"] = [["subject","Subject","never"],["consumer","string","never"],["name","string","never"],["target","string","never"],["challenge","string","absent"],];
+_serviceRecords["CredentialResource"] = [["name","string","never"],];
 _serviceRecords["CheckResult"] = [["outcome","string","never"],["revision","string","never"],];
 _serviceRecords["ApplyResult"] = [["outcome","string","never"],["revision","string","never"],["headers","map<string,string>","zero"],];
+_serviceRecords["SecretValue"] = [["name","string","never"],["revision","string","never"],["secret","binary","never"],];
+_serviceRecords["SecretReadResult"] = [["outcome","string","never"],["value","SecretValue","absent"],];
+_serviceRecords["MetadataReadResult"] = [["outcome","string","never"],["current","Metadata","absent"],];
 _serviceRecords["OAHolderStoreArguments"] = [["expectedRevision","string","never"],["registration","Registration","never"],];
 _serviceRecords["OAHolderRotateArguments"] = [["expectedRevision","string","never"],["rotation","Rotation","never"],];
 _serviceRecords["OAHolderRevokeArguments"] = [["expectedRevision","string","never"],["name","string","never"],];
@@ -3169,6 +4224,13 @@ _serviceRecords["OAHolderListArguments"] = [["cursor","string","never"],["limit"
 _serviceRecords["OAHolderAuditArguments"] = [["cursor","string","never"],["maxEntries","i64","never"],];
 _serviceRecords["OAApplierCheckArguments"] = [["usage","Use","never"],];
 _serviceRecords["OAApplierApplyArguments"] = [["usage","Use","never"],];
+_serviceRecords["OASecretReaderReadArguments"] = [["name","string","never"],];
+_serviceRecords["OAScopedHolderStoreArguments"] = [["expectedRevision","string","never"],["registration","Registration","never"],];
+_serviceRecords["OAScopedHolderRotateArguments"] = [["expectedRevision","string","never"],["rotation","Rotation","never"],];
+_serviceRecords["OAScopedHolderRevokeArguments"] = [["expectedRevision","string","never"],["name","string","never"],];
+_serviceRecords["OAScopedHolderMetadataArguments"] = [["name","string","never"],];
+_serviceRecords["OAScopedApplierCheckArguments"] = [["usage","Use","never"],];
+_serviceRecords["OAScopedApplierApplyArguments"] = [["usage","Use","never"],];
 _serviceRecords["OAServiceFrame"] = [["version","i32","never"],["service","string","never"],["method","string","never"],["arguments","json","never"],];
 _serviceRecords["OAServiceReply"] = [["version","i32","never"],["service","string","never"],["method","string","never"],["ok","bool","never"],["payload","json","never"],];
 _serviceRecords["OAServiceError"] = [["code","string","never"],["message","string","never"],];
@@ -3179,6 +4241,13 @@ _serviceRecords["OAHolderListResult"] = [["value","MetadataPage","never"],];
 _serviceRecords["OAHolderAuditResult"] = [["value","AuditPage","never"],];
 _serviceRecords["OAApplierCheckResult"] = [["value","CheckResult","never"],];
 _serviceRecords["OAApplierApplyResult"] = [["value","ApplyResult","never"],];
+_serviceRecords["OASecretReaderReadResult"] = [["value","SecretReadResult","never"],];
+_serviceRecords["OAScopedHolderStoreResult"] = [["value","StoreResult","never"],];
+_serviceRecords["OAScopedHolderRotateResult"] = [["value","RotateResult","never"],];
+_serviceRecords["OAScopedHolderRevokeResult"] = [["value","RevokeResult","never"],];
+_serviceRecords["OAScopedHolderMetadataResult"] = [["value","MetadataReadResult","never"],];
+_serviceRecords["OAScopedApplierCheckResult"] = [["value","CheckResult","never"],];
+_serviceRecords["OAScopedApplierApplyResult"] = [["value","ApplyResult","never"],];
 
 function _serviceRequest(service, method, argumentsBytes) {
   return _serviceEncode(writeOAServiceFrame, {
@@ -3297,3 +4366,941 @@ export class ApplierClient {
   }
 }
 export const ApplierService = Object.freeze({wireName:"abstraction.credentials/applier@1",Client:ApplierClient});
+
+export class SecretReaderClient {
+  constructor(transport) { this._transport = transport; }
+
+  async read(name) {
+    const _args = newOASecretReaderReadArguments();
+    _args.name = name;
+    _serviceCheck("OASecretReaderReadArguments", _args);
+    const _payload = _serviceEncode(writeOASecretReaderReadArguments, _args, 1);
+    _serviceDecode(readOASecretReaderReadArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.credentials/reader@1", "Read", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/reader@1", "Read");
+    const _result = _serviceDecode(readOASecretReaderReadResult, _reply, 1);
+    return _result.value;
+  }
+}
+export const SecretReaderService = Object.freeze({wireName:"abstraction.credentials/reader@1",Client:SecretReaderClient});
+
+export class ScopedHolderClient {
+  constructor(transport) { this._transport = transport; }
+
+  async store(expectedRevision, registration) {
+    const _args = newOAScopedHolderStoreArguments();
+    _args.expectedRevision = expectedRevision;
+    _args.registration = registration;
+    _serviceCheck("OAScopedHolderStoreArguments", _args);
+    const _payload = _serviceEncode(writeOAScopedHolderStoreArguments, _args, 1);
+    _serviceDecode(readOAScopedHolderStoreArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.credentials/holder@2", "Store", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/holder@2", "Store");
+    const _result = _serviceDecode(readOAScopedHolderStoreResult, _reply, 1);
+    return _result.value;
+  }
+
+  async rotate(expectedRevision, rotation) {
+    const _args = newOAScopedHolderRotateArguments();
+    _args.expectedRevision = expectedRevision;
+    _args.rotation = rotation;
+    _serviceCheck("OAScopedHolderRotateArguments", _args);
+    const _payload = _serviceEncode(writeOAScopedHolderRotateArguments, _args, 1);
+    _serviceDecode(readOAScopedHolderRotateArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.credentials/holder@2", "Rotate", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/holder@2", "Rotate");
+    const _result = _serviceDecode(readOAScopedHolderRotateResult, _reply, 1);
+    return _result.value;
+  }
+
+  async revoke(expectedRevision, name) {
+    const _args = newOAScopedHolderRevokeArguments();
+    _args.expectedRevision = expectedRevision;
+    _args.name = name;
+    _serviceCheck("OAScopedHolderRevokeArguments", _args);
+    const _payload = _serviceEncode(writeOAScopedHolderRevokeArguments, _args, 1);
+    _serviceDecode(readOAScopedHolderRevokeArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.credentials/holder@2", "Revoke", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/holder@2", "Revoke");
+    const _result = _serviceDecode(readOAScopedHolderRevokeResult, _reply, 1);
+    return _result.value;
+  }
+
+  async metadata(name) {
+    const _args = newOAScopedHolderMetadataArguments();
+    _args.name = name;
+    _serviceCheck("OAScopedHolderMetadataArguments", _args);
+    const _payload = _serviceEncode(writeOAScopedHolderMetadataArguments, _args, 1);
+    _serviceDecode(readOAScopedHolderMetadataArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.credentials/holder@2", "Metadata", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/holder@2", "Metadata");
+    const _result = _serviceDecode(readOAScopedHolderMetadataResult, _reply, 1);
+    return _result.value;
+  }
+}
+export const ScopedHolderService = Object.freeze({wireName:"abstraction.credentials/holder@2",Client:ScopedHolderClient});
+
+export class ScopedApplierClient {
+  constructor(transport) { this._transport = transport; }
+
+  async check(usage) {
+    const _args = newOAScopedApplierCheckArguments();
+    _args.usage = usage;
+    _serviceCheck("OAScopedApplierCheckArguments", _args);
+    const _payload = _serviceEncode(writeOAScopedApplierCheckArguments, _args, 1);
+    _serviceDecode(readOAScopedApplierCheckArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.credentials/applier@2", "Check", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/applier@2", "Check");
+    const _result = _serviceDecode(readOAScopedApplierCheckResult, _reply, 1);
+    return _result.value;
+  }
+
+  async apply(usage) {
+    const _args = newOAScopedApplierApplyArguments();
+    _args.usage = usage;
+    _serviceCheck("OAScopedApplierApplyArguments", _args);
+    const _payload = _serviceEncode(writeOAScopedApplierApplyArguments, _args, 1);
+    _serviceDecode(readOAScopedApplierApplyArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.credentials/applier@2", "Apply", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/applier@2", "Apply");
+    const _result = _serviceDecode(readOAScopedApplierApplyResult, _reply, 1);
+    return _result.value;
+  }
+}
+export const ScopedApplierService = Object.freeze({wireName:"abstraction.credentials/applier@2",Client:ScopedApplierClient});
+
+const _namedRecords = Object.create(null);
+_namedRecords["Subject"] = [["account","string","never"],["program","string","never"],];
+_namedRecords["Scope"] = [["targets","list<string>","never"],["consumers","list<string>","never"],];
+_namedRecords["Metadata"] = [["name","string","never"],["kind","string","never"],["revision","string","never"],["state","string","never"],["scope","Scope","never"],["registeredBy","Subject","never"],["registered","string","never"],["expires","string","absent"],["header","string","absent"],["lastApplied","string","absent"],];
+_namedRecords["Registration"] = [["name","string","never"],["kind","string","never"],["scope","Scope","never"],["expires","string","absent"],["header","string","absent"],["secret","binary","never"],];
+_namedRecords["Rotation"] = [["name","string","never"],["expires","string","absent"],["secret","binary","never"],];
+_namedRecords["StoreResult"] = [["outcome","string","never"],["revision","string","never"],["current","Metadata","absent"],];
+_namedRecords["RotateResult"] = [["outcome","string","never"],["revision","string","never"],["current","Metadata","absent"],];
+_namedRecords["RevokeResult"] = [["outcome","string","never"],["revision","string","never"],];
+_namedRecords["Limits"] = [["maxCredentials","i64","never"],["maxSecretBytes","i64","never"],["tombstoneRetentionMs","i64","never"],["auditRetentionMs","i64","never"],["auditCapacity","i64","never"],["secureStore","string","never"],["supportedKinds","list<string>","never"],];
+_namedRecords["MetadataPage"] = [["outcome","string","never"],["limits","Limits","never"],["records","list<Metadata>","never"],["next","string","never"],["complete","bool","never"],];
+_namedRecords["AuditEntry"] = [["sequence","i64","never"],["time","string","never"],["event","string","never"],["name","string","never"],["revision","string","never"],["subject","Subject","absent"],["consumer","string","absent"],["target","string","absent"],["outcome","string","absent"],];
+_namedRecords["AuditPage"] = [["outcome","string","never"],["entries","list<AuditEntry>","never"],["next","string","never"],["atEnd","bool","never"],];
+_namedRecords["Use"] = [["subject","Subject","never"],["consumer","string","never"],["name","string","never"],["target","string","never"],["challenge","string","absent"],];
+_namedRecords["CredentialResource"] = [["name","string","never"],];
+_namedRecords["CheckResult"] = [["outcome","string","never"],["revision","string","never"],];
+_namedRecords["ApplyResult"] = [["outcome","string","never"],["revision","string","never"],["headers","map<string,string>","zero"],];
+_namedRecords["SecretValue"] = [["name","string","never"],["revision","string","never"],["secret","binary","never"],];
+_namedRecords["SecretReadResult"] = [["outcome","string","never"],["value","SecretValue","absent"],];
+_namedRecords["MetadataReadResult"] = [["outcome","string","never"],["current","Metadata","absent"],];
+function _namedCheck(kind, value, depth = 0, limit = DEPTH_LIMIT) {
+  if (depth > limit) throw new Refusal("depth_exceeded", 0);
+  let valid = false;
+  if (kind === "string") {
+    valid = typeof value === "string";
+    if (valid) for (const ch of value) {
+      const cp = ch.codePointAt(0);
+      if (cp >= 0xd800 && cp <= 0xdfff) throw new Refusal("bad_string", 0);
+    }
+  } else if (kind === "i32") {
+    valid = typeof value === "number" && Number.isInteger(value) && value >= -2147483648 && value <= 2147483647;
+  } else if (kind === "i64") {
+    valid = typeof value === "bigint" && value >= -9223372036854775808n && value <= 9223372036854775807n;
+  } else if (kind === "bool") valid = typeof value === "boolean";
+  else if (kind === "binary") valid = value instanceof Uint8Array;
+  else if (kind === "json") {
+    valid = typeof value === "string" || value instanceof Uint8Array;
+    if (valid) { const r = new Reader(typeof value === "string" ? ENC.encode(value) : value); r.depth = depth; r.ws(); r.rawValue(); r.ws(); if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes"); }
+  } else if (kind.startsWith("list<")) {
+    valid = Array.isArray(value);
+    if (valid) for (const item of value) _namedCheck(kind.slice(5,-1), item, depth + 1, limit);
+  } else if (kind.startsWith("map<string,")) {
+    valid = value !== null && typeof value === "object" && !Array.isArray(value);
+    if (valid) for (const [key,item] of Object.entries(value)) { _namedCheck("string",key,depth+1,limit); _namedCheck(kind.slice(11,-1),item,depth+1,limit); }
+  } else {
+    const fields = _namedRecords[kind];
+    valid = fields !== undefined && value !== null && typeof value === "object" && !Array.isArray(value);
+    if (valid) for (const [name,type,omit] of fields) {
+      if (!Object.hasOwn(value,name)) throw new Refusal("missing_field",0);
+      const item = value[name];
+      if (omit === "absent" && item === null) continue;
+      _namedCheck(type,item,depth+1,limit);
+    }
+  }
+  if (!valid) throw new Refusal("wrong_type", 0);
+}
+
+export function checkSubject(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("Subject", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkScope(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("Scope", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkMetadata(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("Metadata", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkRegistration(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("Registration", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkRotation(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("Rotation", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkStoreResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("StoreResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkRotateResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("RotateResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkRevokeResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("RevokeResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkLimits(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("Limits", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkMetadataPage(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("MetadataPage", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkAuditEntry(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("AuditEntry", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkAuditPage(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("AuditPage", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkUse(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("Use", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkCredentialResource(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("CredentialResource", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkCheckResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("CheckResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkApplyResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("ApplyResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkSecretValue(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("SecretValue", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkSecretReadResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("SecretReadResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkMetadataReadResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("MetadataReadResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function decodeSubjectAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readSubject(r);
+  return [v, r.pos];
+}
+
+export function encodeSubjectAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkSubject(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeSubject(out, v, depth);
+  const bytes = out.bytes();
+  decodeSubjectAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeSubject(v) {
+  const bytes = encodeSubjectAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeSubject(data) {
+  const [v, n] = decodeSubjectAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeScopeAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readScope(r);
+  return [v, r.pos];
+}
+
+export function encodeScopeAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkScope(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeScope(out, v, depth);
+  const bytes = out.bytes();
+  decodeScopeAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeScope(v) {
+  const bytes = encodeScopeAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeScope(data) {
+  const [v, n] = decodeScopeAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeMetadataAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readMetadata(r);
+  return [v, r.pos];
+}
+
+export function encodeMetadataAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkMetadata(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeMetadata(out, v, depth);
+  const bytes = out.bytes();
+  decodeMetadataAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeMetadata(v) {
+  const bytes = encodeMetadataAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeMetadata(data) {
+  const [v, n] = decodeMetadataAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeRegistrationAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readRegistration(r);
+  return [v, r.pos];
+}
+
+export function encodeRegistrationAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkRegistration(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeRegistration(out, v, depth);
+  const bytes = out.bytes();
+  decodeRegistrationAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeRegistration(v) {
+  const bytes = encodeRegistrationAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeRegistration(data) {
+  const [v, n] = decodeRegistrationAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeRotationAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readRotation(r);
+  return [v, r.pos];
+}
+
+export function encodeRotationAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkRotation(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeRotation(out, v, depth);
+  const bytes = out.bytes();
+  decodeRotationAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeRotation(v) {
+  const bytes = encodeRotationAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeRotation(data) {
+  const [v, n] = decodeRotationAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeStoreResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readStoreResult(r);
+  return [v, r.pos];
+}
+
+export function encodeStoreResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkStoreResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeStoreResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeStoreResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeStoreResult(v) {
+  const bytes = encodeStoreResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeStoreResult(data) {
+  const [v, n] = decodeStoreResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeRotateResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readRotateResult(r);
+  return [v, r.pos];
+}
+
+export function encodeRotateResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkRotateResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeRotateResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeRotateResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeRotateResult(v) {
+  const bytes = encodeRotateResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeRotateResult(data) {
+  const [v, n] = decodeRotateResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeRevokeResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readRevokeResult(r);
+  return [v, r.pos];
+}
+
+export function encodeRevokeResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkRevokeResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeRevokeResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeRevokeResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeRevokeResult(v) {
+  const bytes = encodeRevokeResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeRevokeResult(data) {
+  const [v, n] = decodeRevokeResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeLimitsAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readLimits(r);
+  return [v, r.pos];
+}
+
+export function encodeLimitsAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkLimits(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeLimits(out, v, depth);
+  const bytes = out.bytes();
+  decodeLimitsAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeLimits(v) {
+  const bytes = encodeLimitsAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeLimits(data) {
+  const [v, n] = decodeLimitsAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeMetadataPageAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readMetadataPage(r);
+  return [v, r.pos];
+}
+
+export function encodeMetadataPageAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkMetadataPage(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeMetadataPage(out, v, depth);
+  const bytes = out.bytes();
+  decodeMetadataPageAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeMetadataPage(v) {
+  const bytes = encodeMetadataPageAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeMetadataPage(data) {
+  const [v, n] = decodeMetadataPageAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeAuditEntryAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readAuditEntry(r);
+  return [v, r.pos];
+}
+
+export function encodeAuditEntryAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkAuditEntry(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeAuditEntry(out, v, depth);
+  const bytes = out.bytes();
+  decodeAuditEntryAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeAuditEntry(v) {
+  const bytes = encodeAuditEntryAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeAuditEntry(data) {
+  const [v, n] = decodeAuditEntryAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeAuditPageAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readAuditPage(r);
+  return [v, r.pos];
+}
+
+export function encodeAuditPageAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkAuditPage(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeAuditPage(out, v, depth);
+  const bytes = out.bytes();
+  decodeAuditPageAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeAuditPage(v) {
+  const bytes = encodeAuditPageAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeAuditPage(data) {
+  const [v, n] = decodeAuditPageAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeUseAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readUse(r);
+  return [v, r.pos];
+}
+
+export function encodeUseAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkUse(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeUse(out, v, depth);
+  const bytes = out.bytes();
+  decodeUseAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeUse(v) {
+  const bytes = encodeUseAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeUse(data) {
+  const [v, n] = decodeUseAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeCredentialResourceAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readCredentialResource(r);
+  return [v, r.pos];
+}
+
+export function encodeCredentialResourceAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkCredentialResource(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeCredentialResource(out, v, depth);
+  const bytes = out.bytes();
+  decodeCredentialResourceAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeCredentialResource(v) {
+  const bytes = encodeCredentialResourceAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeCredentialResource(data) {
+  const [v, n] = decodeCredentialResourceAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeCheckResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readCheckResult(r);
+  return [v, r.pos];
+}
+
+export function encodeCheckResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkCheckResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeCheckResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeCheckResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeCheckResult(v) {
+  const bytes = encodeCheckResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeCheckResult(data) {
+  const [v, n] = decodeCheckResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeApplyResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readApplyResult(r);
+  return [v, r.pos];
+}
+
+export function encodeApplyResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkApplyResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeApplyResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeApplyResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeApplyResult(v) {
+  const bytes = encodeApplyResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeApplyResult(data) {
+  const [v, n] = decodeApplyResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeSecretValueAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readSecretValue(r);
+  return [v, r.pos];
+}
+
+export function encodeSecretValueAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkSecretValue(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeSecretValue(out, v, depth);
+  const bytes = out.bytes();
+  decodeSecretValueAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeSecretValue(v) {
+  const bytes = encodeSecretValueAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeSecretValue(data) {
+  const [v, n] = decodeSecretValueAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeSecretReadResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readSecretReadResult(r);
+  return [v, r.pos];
+}
+
+export function encodeSecretReadResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkSecretReadResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeSecretReadResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeSecretReadResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeSecretReadResult(v) {
+  const bytes = encodeSecretReadResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeSecretReadResult(data) {
+  const [v, n] = decodeSecretReadResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeMetadataReadResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readMetadataReadResult(r);
+  return [v, r.pos];
+}
+
+export function encodeMetadataReadResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkMetadataReadResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeMetadataReadResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeMetadataReadResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeMetadataReadResult(v) {
+  const bytes = encodeMetadataReadResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeMetadataReadResult(data) {
+  const [v, n] = decodeMetadataReadResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}

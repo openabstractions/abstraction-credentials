@@ -912,6 +912,264 @@ func (v ApplyOutcome) Known() bool {
 	return ok
 }
 
+// SecretReadOutcome is a closed vocabulary. Its numeric values are private implementation
+// tags; String and ParseSecretReadOutcome preserve the exact wire words.
+type SecretReadOutcome uint32
+
+const (
+	SecretReadOutcomeRead            SecretReadOutcome = 1
+	SecretReadOutcomeUnknown         SecretReadOutcome = 2
+	SecretReadOutcomeExpired         SecretReadOutcome = 3
+	SecretReadOutcomeRevoked         SecretReadOutcome = 4
+	SecretReadOutcomeLost            SecretReadOutcome = 5
+	SecretReadOutcomeInvalid         SecretReadOutcome = 6
+	SecretReadOutcomeForbidden       SecretReadOutcome = 7
+	SecretReadOutcomeUnavailable     SecretReadOutcome = 8
+	SecretReadOutcomeConflict        SecretReadOutcome = 9
+	SecretReadOutcomeUnsupportedKind SecretReadOutcome = 10
+)
+
+// String returns v's exact wire word, or the empty string for an invalid value.
+func (v SecretReadOutcome) String() string {
+	word, _ := v.WireName()
+	return word
+}
+
+// WireName returns v's exact wire word and whether v names a member.
+func (v SecretReadOutcome) WireName() (string, bool) {
+	switch v {
+	case SecretReadOutcomeRead:
+		return "read", true
+	case SecretReadOutcomeUnknown:
+		return "unknown", true
+	case SecretReadOutcomeExpired:
+		return "expired", true
+	case SecretReadOutcomeRevoked:
+		return "revoked", true
+	case SecretReadOutcomeLost:
+		return "lost", true
+	case SecretReadOutcomeInvalid:
+		return "invalid", true
+	case SecretReadOutcomeForbidden:
+		return "forbidden", true
+	case SecretReadOutcomeUnavailable:
+		return "unavailable", true
+	case SecretReadOutcomeConflict:
+		return "conflict", true
+	case SecretReadOutcomeUnsupportedKind:
+		return "unsupported_kind", true
+	}
+	return "", false
+}
+
+// ParseSecretReadOutcome returns the member named by an exact wire word.
+func ParseSecretReadOutcome(word string) (SecretReadOutcome, bool) {
+	switch word {
+	case "read":
+		return SecretReadOutcomeRead, true
+	case "unknown":
+		return SecretReadOutcomeUnknown, true
+	case "expired":
+		return SecretReadOutcomeExpired, true
+	case "revoked":
+		return SecretReadOutcomeRevoked, true
+	case "lost":
+		return SecretReadOutcomeLost, true
+	case "invalid":
+		return SecretReadOutcomeInvalid, true
+	case "forbidden":
+		return SecretReadOutcomeForbidden, true
+	case "unavailable":
+		return SecretReadOutcomeUnavailable, true
+	case "conflict":
+		return SecretReadOutcomeConflict, true
+	case "unsupported_kind":
+		return SecretReadOutcomeUnsupportedKind, true
+	}
+	return SecretReadOutcome(0), false
+}
+
+// MarshalText preserves the member's exact wire word for standard text users,
+// including JSON object keys. Invalid and zero values are refused.
+func (v SecretReadOutcome) MarshalText() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return []byte(word), nil
+}
+
+// UnmarshalText accepts an exact wire word and refuses unknown text.
+func (v *SecretReadOutcome) UnmarshalText(text []byte) error {
+	word, ok := ParseSecretReadOutcome(string(text))
+	if !ok {
+		return &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	*v = word
+	return nil
+}
+
+// MarshalJSON keeps closed vocabularies as JSON strings rather than their
+// private numeric implementation tags.
+func (v SecretReadOutcome) MarshalJSON() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return esc(nil, word), nil
+}
+
+// UnmarshalJSON accepts only an exact JSON string member. Numbers, null and
+// unknown strings are refused by the same codec rules as generated records.
+func (v *SecretReadOutcome) UnmarshalJSON(data []byte) error {
+	r := reader{buf: data}
+	r.ws()
+	word, err := r.str()
+	if err != nil {
+		return err
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		return r.refuse("trailing_bytes")
+	}
+	parsed, ok := ParseSecretReadOutcome(word)
+	if !ok {
+		return r.refuse("bad_enum")
+	}
+	*v = parsed
+	return nil
+}
+
+// SecretReadOutcomeValues returns every member of SecretReadOutcome in declaration order, in a new slice.
+func SecretReadOutcomeValues() []SecretReadOutcome {
+	return []SecretReadOutcome{SecretReadOutcomeRead, SecretReadOutcomeUnknown, SecretReadOutcomeExpired, SecretReadOutcomeRevoked, SecretReadOutcomeLost, SecretReadOutcomeInvalid, SecretReadOutcomeForbidden, SecretReadOutcomeUnavailable, SecretReadOutcomeConflict, SecretReadOutcomeUnsupportedKind}
+}
+
+// Known reports whether v is a member of SecretReadOutcome.
+func (v SecretReadOutcome) Known() bool {
+	_, ok := v.WireName()
+	return ok
+}
+
+// MetadataReadOutcome is a closed vocabulary. Its numeric values are private implementation
+// tags; String and ParseMetadataReadOutcome preserve the exact wire words.
+type MetadataReadOutcome uint32
+
+const (
+	MetadataReadOutcomeFound       MetadataReadOutcome = 1
+	MetadataReadOutcomeUnknown     MetadataReadOutcome = 2
+	MetadataReadOutcomeInvalid     MetadataReadOutcome = 3
+	MetadataReadOutcomeForbidden   MetadataReadOutcome = 4
+	MetadataReadOutcomeUnavailable MetadataReadOutcome = 5
+	MetadataReadOutcomeConflict    MetadataReadOutcome = 6
+)
+
+// String returns v's exact wire word, or the empty string for an invalid value.
+func (v MetadataReadOutcome) String() string {
+	word, _ := v.WireName()
+	return word
+}
+
+// WireName returns v's exact wire word and whether v names a member.
+func (v MetadataReadOutcome) WireName() (string, bool) {
+	switch v {
+	case MetadataReadOutcomeFound:
+		return "found", true
+	case MetadataReadOutcomeUnknown:
+		return "unknown", true
+	case MetadataReadOutcomeInvalid:
+		return "invalid", true
+	case MetadataReadOutcomeForbidden:
+		return "forbidden", true
+	case MetadataReadOutcomeUnavailable:
+		return "unavailable", true
+	case MetadataReadOutcomeConflict:
+		return "conflict", true
+	}
+	return "", false
+}
+
+// ParseMetadataReadOutcome returns the member named by an exact wire word.
+func ParseMetadataReadOutcome(word string) (MetadataReadOutcome, bool) {
+	switch word {
+	case "found":
+		return MetadataReadOutcomeFound, true
+	case "unknown":
+		return MetadataReadOutcomeUnknown, true
+	case "invalid":
+		return MetadataReadOutcomeInvalid, true
+	case "forbidden":
+		return MetadataReadOutcomeForbidden, true
+	case "unavailable":
+		return MetadataReadOutcomeUnavailable, true
+	case "conflict":
+		return MetadataReadOutcomeConflict, true
+	}
+	return MetadataReadOutcome(0), false
+}
+
+// MarshalText preserves the member's exact wire word for standard text users,
+// including JSON object keys. Invalid and zero values are refused.
+func (v MetadataReadOutcome) MarshalText() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return []byte(word), nil
+}
+
+// UnmarshalText accepts an exact wire word and refuses unknown text.
+func (v *MetadataReadOutcome) UnmarshalText(text []byte) error {
+	word, ok := ParseMetadataReadOutcome(string(text))
+	if !ok {
+		return &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	*v = word
+	return nil
+}
+
+// MarshalJSON keeps closed vocabularies as JSON strings rather than their
+// private numeric implementation tags.
+func (v MetadataReadOutcome) MarshalJSON() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return esc(nil, word), nil
+}
+
+// UnmarshalJSON accepts only an exact JSON string member. Numbers, null and
+// unknown strings are refused by the same codec rules as generated records.
+func (v *MetadataReadOutcome) UnmarshalJSON(data []byte) error {
+	r := reader{buf: data}
+	r.ws()
+	word, err := r.str()
+	if err != nil {
+		return err
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		return r.refuse("trailing_bytes")
+	}
+	parsed, ok := ParseMetadataReadOutcome(word)
+	if !ok {
+		return r.refuse("bad_enum")
+	}
+	*v = parsed
+	return nil
+}
+
+// MetadataReadOutcomeValues returns every member of MetadataReadOutcome in declaration order, in a new slice.
+func MetadataReadOutcomeValues() []MetadataReadOutcome {
+	return []MetadataReadOutcome{MetadataReadOutcomeFound, MetadataReadOutcomeUnknown, MetadataReadOutcomeInvalid, MetadataReadOutcomeForbidden, MetadataReadOutcomeUnavailable, MetadataReadOutcomeConflict}
+}
+
+// Known reports whether v is a member of MetadataReadOutcome.
+func (v MetadataReadOutcome) Known() bool {
+	_, ok := v.WireName()
+	return ok
+}
+
 // ServiceErrorCode is an open vocabulary: a reader keeps a word it has never heard, so
 // a value may be none of the constants below. ServiceErrorCode(word) and string(v)
 // convert between the raw word and the vocabulary.
@@ -942,9 +1200,9 @@ func (v ServiceErrorCode) Known() bool {
 
 var CredentialKinds = []string{"bearer", "header"}
 
-var ResourceActions = []string{"abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply"}
+var ResourceActions = []string{"abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"}
 
-var ExecutionGuarantees = []string{"abstraction.download/credentials@1"}
+var ExecutionGuarantees = []string{"abstraction.download/credentials@1", "abstraction.download/credentials@2"}
 
 var Consumers = []string{"abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"}
 
@@ -1115,6 +1373,21 @@ type Use struct {
 	Challenge string
 }
 
+// An account-owned credential name slot. name is 1..64 ASCII letters, digits,
+// '_', '.' or '-'; the old exact rights resource is credential:<name>.
+// Account/program bind separately at the receiving boundary. The canonical
+// generated document is the target of named-secret@1 and named-use@2, whose
+// collection is saved application credentials of kinds accepted by Store;
+// runtime local-key@1 records are excluded. named-use@1 retains its original
+// exact route. Name grants follow the current slot, including rotation and a
+// recreated registration's current restrictions. Read discloses the current
+// value to the bound requesting program under a distinct permission. Management
+// operations convey only their explicit supported effects. Every target
+// operation revalidates current membership, state and expiry after waits.
+type CredentialResource struct {
+	Name string
+}
+
 // applied means Apply with the same Use would carry headers now. revision is
 // present for evaluated records. No secret is read for a check.
 type CheckResult struct {
@@ -1138,6 +1411,42 @@ type ApplyResult struct {
 	Outcome  ApplyOutcome
 	Revision string
 	Headers  map[string]string
+}
+
+// Successful reader@1 response only. name is the requested canonical slot and
+// revision is the actual current record revision. secret is a fresh copy of
+// 1..4096 bytes, within the configured store's limit. The receiving application
+// owns this returned copy and clears it after use; no client/provider retains
+// or logs it. No metadata, audit, history, error, Asks record or diagnostic
+// contains the value or a derivative.
+type SecretValue struct {
+	Name     string
+	Revision string
+	Secret   []byte
+}
+
+// value is present exactly for read. Every refusal has no name, revision, value
+// or derived byte data. Native recipient and explicit Read authority are
+// checked before any existence/state disclosure and again before returning
+// bytes or a state-bearing result. forbidden covers absent authority and an
+// unproven/foreign recipient. conflict means the selected policy snapshot
+// became stale; no bytes are returned. Runtime-managed local-key@1 is outside
+// this collection and reads unsupported_kind only after authorization.
+// Consumer/website restrictions constrain service-mediated Use; raw Read
+// explicitly exports the value to the requesting application.
+type SecretReadResult struct {
+	Outcome SecretReadOutcome
+	Value   *SecretValue
+}
+
+// found carries only the authorized name's current metadata, including an
+// expired/lost record or a tombstone inside retention. Other outcomes carry no
+// current or revision. This lookup supports conditional-edit reconciliation
+// without account List/Audit access. Runtime-managed records are outside the
+// collection and read forbidden.
+type MetadataReadResult struct {
+	Outcome MetadataReadOutcome
+	Current *Metadata
 }
 
 type oaHolderStoreArguments struct {
@@ -1170,6 +1479,37 @@ type oaApplierCheckArguments struct {
 }
 
 type oaApplierApplyArguments struct {
+	Usage Use
+}
+
+type oaSecretReaderReadArguments struct {
+	Name string
+}
+
+type oaScopedHolderStoreArguments struct {
+	ExpectedRevision string
+	Registration     Registration
+}
+
+type oaScopedHolderRotateArguments struct {
+	ExpectedRevision string
+	Rotation         Rotation
+}
+
+type oaScopedHolderRevokeArguments struct {
+	ExpectedRevision string
+	Name             string
+}
+
+type oaScopedHolderMetadataArguments struct {
+	Name string
+}
+
+type oaScopedApplierCheckArguments struct {
+	Usage Use
+}
+
+type oaScopedApplierApplyArguments struct {
 	Usage Use
 }
 
@@ -1218,6 +1558,34 @@ type oaApplierCheckResult struct {
 }
 
 type oaApplierApplyResult struct {
+	Value ApplyResult
+}
+
+type oaSecretReaderReadResult struct {
+	Value SecretReadResult
+}
+
+type oaScopedHolderStoreResult struct {
+	Value StoreResult
+}
+
+type oaScopedHolderRotateResult struct {
+	Value RotateResult
+}
+
+type oaScopedHolderRevokeResult struct {
+	Value RevokeResult
+}
+
+type oaScopedHolderMetadataResult struct {
+	Value MetadataReadResult
+}
+
+type oaScopedApplierCheckResult struct {
+	Value CheckResult
+}
+
+type oaScopedApplierApplyResult struct {
 	Value ApplyResult
 }
 
@@ -1714,6 +2082,18 @@ func encUse(out []byte, v *Use, depth int) []byte {
 	return append(out, '}')
 }
 
+func encCredentialResource(out []byte, v *CredentialResource, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "name")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Name)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
 func encCheckResult(out []byte, v *CheckResult, depth int) []byte {
 	if !(v.Outcome).Known() {
 		panic(&Refusal{Word: "bad_enum", Offset: 0})
@@ -1758,6 +2138,76 @@ func encApplyResult(out []byte, v *ApplyResult, depth int) []byte {
 		out = esc(out, "headers")
 		out = append(out, ':', ' ')
 		out = strmap(out, v.Headers, depth+1)
+	}
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encSecretValue(out []byte, v *SecretValue, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "name")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Name)
+	out = append(out, ',')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "revision")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Revision)
+	out = append(out, ',')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "secret")
+	out = append(out, ':', ' ')
+	out = esc(out, encodeBinary(v.Secret))
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encSecretReadResult(out []byte, v *SecretReadResult, depth int) []byte {
+	if !(v.Outcome).Known() {
+		panic(&Refusal{Word: "bad_enum", Offset: 0})
+	}
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "outcome")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Outcome.String())
+	if v.Value != nil {
+		out = append(out, ',')
+		out = append(out, '\n')
+		out = pad(out, depth+1)
+		out = esc(out, "value")
+		out = append(out, ':', ' ')
+		out = encSecretValue(out, v.Value, depth+1)
+	}
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encMetadataReadResult(out []byte, v *MetadataReadResult, depth int) []byte {
+	if !(v.Outcome).Known() {
+		panic(&Refusal{Word: "bad_enum", Offset: 0})
+	}
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "outcome")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Outcome.String())
+	if v.Current != nil {
+		out = append(out, ',')
+		out = append(out, '\n')
+		out = pad(out, depth+1)
+		out = esc(out, "current")
+		out = append(out, ':', ' ')
+		out = encMetadata(out, v.Current, depth+1)
 	}
 	out = append(out, '\n')
 	out = pad(out, depth)
@@ -1867,6 +2317,108 @@ func encOAApplierCheckArguments(out []byte, v *oaApplierCheckArguments, depth in
 }
 
 func encOAApplierApplyArguments(out []byte, v *oaApplierApplyArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "usage")
+	out = append(out, ':', ' ')
+	out = encUse(out, &v.Usage, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOASecretReaderReadArguments(out []byte, v *oaSecretReaderReadArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "name")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Name)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderStoreArguments(out []byte, v *oaScopedHolderStoreArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "expected_revision")
+	out = append(out, ':', ' ')
+	out = esc(out, v.ExpectedRevision)
+	out = append(out, ',')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "registration")
+	out = append(out, ':', ' ')
+	out = encRegistration(out, &v.Registration, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderRotateArguments(out []byte, v *oaScopedHolderRotateArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "expected_revision")
+	out = append(out, ':', ' ')
+	out = esc(out, v.ExpectedRevision)
+	out = append(out, ',')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "rotation")
+	out = append(out, ':', ' ')
+	out = encRotation(out, &v.Rotation, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderRevokeArguments(out []byte, v *oaScopedHolderRevokeArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "expected_revision")
+	out = append(out, ':', ' ')
+	out = esc(out, v.ExpectedRevision)
+	out = append(out, ',')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "name")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Name)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderMetadataArguments(out []byte, v *oaScopedHolderMetadataArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "name")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Name)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedApplierCheckArguments(out []byte, v *oaScopedApplierCheckArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "usage")
+	out = append(out, ':', ' ')
+	out = encUse(out, &v.Usage, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedApplierApplyArguments(out []byte, v *oaScopedApplierApplyArguments, depth int) []byte {
 	out = append(out, '{')
 	out = append(out, '\n')
 	out = pad(out, depth+1)
@@ -2050,6 +2602,90 @@ func encOAApplierApplyResult(out []byte, v *oaApplierApplyResult, depth int) []b
 	return append(out, '}')
 }
 
+func encOASecretReaderReadResult(out []byte, v *oaSecretReaderReadResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encSecretReadResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderStoreResult(out []byte, v *oaScopedHolderStoreResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encStoreResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderRotateResult(out []byte, v *oaScopedHolderRotateResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encRotateResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderRevokeResult(out []byte, v *oaScopedHolderRevokeResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encRevokeResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedHolderMetadataResult(out []byte, v *oaScopedHolderMetadataResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encMetadataReadResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedApplierCheckResult(out []byte, v *oaScopedApplierCheckResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encCheckResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAScopedApplierApplyResult(out []byte, v *oaScopedApplierApplyResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encApplyResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
 func Encode(v *Registration) []byte {
 	return append(encRegistration(nil, v, 0), '\n')
 }
@@ -2071,6 +2707,7 @@ type reader struct {
 	buf   []byte
 	pos   int
 	depth int
+ limit int
 }
 
 func (r *reader) refuse(word string) error { return &Refusal{Word: word, Offset: r.pos} }
@@ -2095,7 +2732,7 @@ func (r *reader) ws() {
 
 func (r *reader) enter() error {
 	r.depth++
-	if r.depth > depthLimit {
+	if r.depth > r.depthLimit() {
 		return r.refuse("depth_exceeded")
 	}
 	return nil
@@ -4066,6 +4703,65 @@ func (r *reader) decodeUse() (*Use, error) {
 	return v, nil
 }
 
+func (r *reader) decodeCredentialResource() (*CredentialResource, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &CredentialResource{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "name":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.Name = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
 func (r *reader) decodeCheckResult() (*CheckResult, error) {
 	if r.at() != '{' {
 		return nil, r.refuse("wrong_type")
@@ -4220,6 +4916,237 @@ func (r *reader) decodeApplyResult() (*ApplyResult, error) {
 	r.pos++
 	r.depth--
 	if seen&3 != 3 {
+		return nil, r.refuse("missing_field")
+	}
+	if !(v.Outcome).Known() {
+		return nil, r.refuse("bad_enum")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeSecretValue() (*SecretValue, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &SecretValue{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "name":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.Name = x
+			case "revision":
+				if seen&2 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 2
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.Revision = x
+			case "secret":
+				if seen&4 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 4
+				x, err := r.binary()
+				if err != nil {
+					return nil, err
+				}
+				v.Secret = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&7 != 7 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeSecretReadResult() (*SecretReadResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &SecretReadResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "outcome":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				word, ok := ParseSecretReadOutcome(x)
+				if !ok {
+					return nil, r.refuse("bad_enum")
+				}
+				v.Outcome = word
+			case "value":
+				if seen&2 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 2
+				x, err := r.decodeSecretValue()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	if !(v.Outcome).Known() {
+		return nil, r.refuse("bad_enum")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeMetadataReadResult() (*MetadataReadResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &MetadataReadResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "outcome":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				word, ok := ParseMetadataReadOutcome(x)
+				if !ok {
+					return nil, r.refuse("bad_enum")
+				}
+				v.Outcome = word
+			case "current":
+				if seen&2 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 2
+				x, err := r.decodeMetadata()
+				if err != nil {
+					return nil, err
+				}
+				v.Current = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
 		return nil, r.refuse("missing_field")
 	}
 	if !(v.Outcome).Known() {
@@ -4641,6 +5568,449 @@ func (r *reader) decodeOAApplierApplyArguments() (*oaApplierApplyArguments, erro
 	}
 	r.pos++
 	v := &oaApplierApplyArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "usage":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeUse()
+				if err != nil {
+					return nil, err
+				}
+				v.Usage = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOASecretReaderReadArguments() (*oaSecretReaderReadArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaSecretReaderReadArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "name":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.Name = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderStoreArguments() (*oaScopedHolderStoreArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderStoreArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "expected_revision":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.ExpectedRevision = x
+			case "registration":
+				if seen&2 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 2
+				x, err := r.decodeRegistration()
+				if err != nil {
+					return nil, err
+				}
+				v.Registration = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&3 != 3 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderRotateArguments() (*oaScopedHolderRotateArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderRotateArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "expected_revision":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.ExpectedRevision = x
+			case "rotation":
+				if seen&2 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 2
+				x, err := r.decodeRotation()
+				if err != nil {
+					return nil, err
+				}
+				v.Rotation = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&3 != 3 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderRevokeArguments() (*oaScopedHolderRevokeArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderRevokeArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "expected_revision":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.ExpectedRevision = x
+			case "name":
+				if seen&2 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 2
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.Name = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&3 != 3 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderMetadataArguments() (*oaScopedHolderMetadataArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderMetadataArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "name":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.Name = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedApplierCheckArguments() (*oaScopedApplierCheckArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedApplierCheckArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "usage":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeUse()
+				if err != nil {
+					return nil, err
+				}
+				v.Usage = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedApplierApplyArguments() (*oaScopedApplierApplyArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedApplierApplyArguments{}
 	var seen uint32
 	r.ws()
 	if r.at() != '}' {
@@ -5311,6 +6681,419 @@ func (r *reader) decodeOAApplierApplyResult() (*oaApplierApplyResult, error) {
 	}
 	r.pos++
 	v := &oaApplierApplyResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeApplyResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOASecretReaderReadResult() (*oaSecretReaderReadResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaSecretReaderReadResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeSecretReadResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderStoreResult() (*oaScopedHolderStoreResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderStoreResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeStoreResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderRotateResult() (*oaScopedHolderRotateResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderRotateResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeRotateResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderRevokeResult() (*oaScopedHolderRevokeResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderRevokeResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeRevokeResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedHolderMetadataResult() (*oaScopedHolderMetadataResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedHolderMetadataResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeMetadataReadResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedApplierCheckResult() (*oaScopedApplierCheckResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedApplierCheckResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeCheckResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAScopedApplierApplyResult() (*oaScopedApplierApplyResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaScopedApplierApplyResult{}
 	var seen uint32
 	r.ws()
 	if r.at() != '}' {
@@ -6477,3 +8260,939 @@ func (d *ApplierDispatcher) invokeApply(args *oaApplierApplyArguments) (payload 
 	}
 	return
 }
+
+type SecretReader interface {
+	Read(name string) (SecretReadResult, error)
+}
+type SecretReaderTransport interface {
+	FrameExchanger
+}
+type SecretReaderClient struct{ transport SecretReaderTransport }
+
+func NewSecretReaderClient(t SecretReaderTransport) *SecretReaderClient {
+	return &SecretReaderClient{transport: t}
+}
+
+type SecretReaderDispatcher struct{ Handler SecretReader }
+
+func (c *SecretReaderClient) Read(name string) (result SecretReadResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaSecretReaderReadArguments{Name: name}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.credentials/reader@1", Method: "Read", Arguments: Raw(encOASecretReaderReadArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaSecretReaderReadResult
+	decoded, err = r.decodeOASecretReaderReadResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+
+// DescribeService is this dispatcher's service as abstraction.facade/endpoint@1 Describe lists it:
+// ready unless its handler implements Ready() (bool, string) and reports otherwise.
+func (d *SecretReaderDispatcher) DescribeService() (contract string, ready bool, why string) {
+	if h, ok := d.Handler.(interface{ Ready() (bool, string) }); ok {
+		if ready, why = h.Ready(); ready {
+			why = ""
+		}
+		return "abstraction.credentials/reader@1", ready, why
+	}
+	return "abstraction.credentials/reader@1", true, ""
+}
+
+// DescribeServiceMetadata returns optional handler display facts for Describe.
+// They grant no authority and do not change service admission.
+func (d *SecretReaderDispatcher) DescribeServiceMetadata() (guarantees []string, capabilities map[string]string) {
+	if h, ok := d.Handler.(interface {
+		DescribeMetadata() ([]string, map[string]string)
+	}); ok {
+		return h.DescribeMetadata()
+	}
+	return nil, nil
+}
+
+// ServiceContract is the wire name ServeEndpoint routes this dispatcher's frames by.
+func (d *SecretReaderDispatcher) ServiceContract() string { return "abstraction.credentials/reader@1" }
+func (d *SecretReaderDispatcher) WriteFrame(frame []byte) error {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return err
+	}
+	if v.Service != "abstraction.credentials/reader@1" {
+		return DispatchError("unknown_service")
+	}
+	switch v.Method {
+	case "Read":
+		return DispatchError("wrong_mode")
+	default:
+		return DispatchError("unknown_method")
+	}
+}
+func (d *SecretReaderDispatcher) ExchangeFrame(frame []byte) ([]byte, error) {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return nil, err
+	}
+	if v.Service == EndpointContract {
+		return DescribeEndpoint(frame, "", "", d)
+	}
+	if v.Service != "abstraction.credentials/reader@1" {
+		return serviceReply(v, "", DispatchError("unknown_service"))
+	}
+	switch v.Method {
+	case "Read":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOASecretReaderReadArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeRead(args)
+		return serviceReply(v, payload, err)
+	default:
+		return serviceReply(v, "", DispatchError("unknown_method"))
+	}
+}
+func (d *SecretReaderDispatcher) invokeRead(args *oaSecretReaderReadArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result SecretReadResult
+	result, err = d.Handler.Read(args.Name)
+	if err != nil {
+		return
+	}
+	value := oaSecretReaderReadResult{Value: result}
+	payload = Raw(encOASecretReaderReadResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOASecretReaderReadResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+
+type ScopedHolder interface {
+	Store(expectedRevision string, registration Registration) (StoreResult, error)
+	Rotate(expectedRevision string, rotation Rotation) (RotateResult, error)
+	Revoke(expectedRevision, name string) (RevokeResult, error)
+	Metadata(name string) (MetadataReadResult, error)
+}
+type ScopedHolderTransport interface {
+	FrameExchanger
+}
+type ScopedHolderClient struct{ transport ScopedHolderTransport }
+
+func NewScopedHolderClient(t ScopedHolderTransport) *ScopedHolderClient {
+	return &ScopedHolderClient{transport: t}
+}
+
+type ScopedHolderDispatcher struct{ Handler ScopedHolder }
+
+func (c *ScopedHolderClient) Store(expectedRevision string, registration Registration) (result StoreResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaScopedHolderStoreArguments{ExpectedRevision: expectedRevision, Registration: registration}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.credentials/holder@2", Method: "Store", Arguments: Raw(encOAScopedHolderStoreArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaScopedHolderStoreResult
+	decoded, err = r.decodeOAScopedHolderStoreResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+func (c *ScopedHolderClient) Rotate(expectedRevision string, rotation Rotation) (result RotateResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaScopedHolderRotateArguments{ExpectedRevision: expectedRevision, Rotation: rotation}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.credentials/holder@2", Method: "Rotate", Arguments: Raw(encOAScopedHolderRotateArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaScopedHolderRotateResult
+	decoded, err = r.decodeOAScopedHolderRotateResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+func (c *ScopedHolderClient) Revoke(expectedRevision, name string) (result RevokeResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaScopedHolderRevokeArguments{ExpectedRevision: expectedRevision, Name: name}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.credentials/holder@2", Method: "Revoke", Arguments: Raw(encOAScopedHolderRevokeArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaScopedHolderRevokeResult
+	decoded, err = r.decodeOAScopedHolderRevokeResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+func (c *ScopedHolderClient) Metadata(name string) (result MetadataReadResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaScopedHolderMetadataArguments{Name: name}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.credentials/holder@2", Method: "Metadata", Arguments: Raw(encOAScopedHolderMetadataArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaScopedHolderMetadataResult
+	decoded, err = r.decodeOAScopedHolderMetadataResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+
+// DescribeService is this dispatcher's service as abstraction.facade/endpoint@1 Describe lists it:
+// ready unless its handler implements Ready() (bool, string) and reports otherwise.
+func (d *ScopedHolderDispatcher) DescribeService() (contract string, ready bool, why string) {
+	if h, ok := d.Handler.(interface{ Ready() (bool, string) }); ok {
+		if ready, why = h.Ready(); ready {
+			why = ""
+		}
+		return "abstraction.credentials/holder@2", ready, why
+	}
+	return "abstraction.credentials/holder@2", true, ""
+}
+
+// DescribeServiceMetadata returns optional handler display facts for Describe.
+// They grant no authority and do not change service admission.
+func (d *ScopedHolderDispatcher) DescribeServiceMetadata() (guarantees []string, capabilities map[string]string) {
+	if h, ok := d.Handler.(interface {
+		DescribeMetadata() ([]string, map[string]string)
+	}); ok {
+		return h.DescribeMetadata()
+	}
+	return nil, nil
+}
+
+// ServiceContract is the wire name ServeEndpoint routes this dispatcher's frames by.
+func (d *ScopedHolderDispatcher) ServiceContract() string { return "abstraction.credentials/holder@2" }
+func (d *ScopedHolderDispatcher) WriteFrame(frame []byte) error {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return err
+	}
+	if v.Service != "abstraction.credentials/holder@2" {
+		return DispatchError("unknown_service")
+	}
+	switch v.Method {
+	case "Store":
+		return DispatchError("wrong_mode")
+	case "Rotate":
+		return DispatchError("wrong_mode")
+	case "Revoke":
+		return DispatchError("wrong_mode")
+	case "Metadata":
+		return DispatchError("wrong_mode")
+	default:
+		return DispatchError("unknown_method")
+	}
+}
+func (d *ScopedHolderDispatcher) ExchangeFrame(frame []byte) ([]byte, error) {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return nil, err
+	}
+	if v.Service == EndpointContract {
+		return DescribeEndpoint(frame, "", "", d)
+	}
+	if v.Service != "abstraction.credentials/holder@2" {
+		return serviceReply(v, "", DispatchError("unknown_service"))
+	}
+	switch v.Method {
+	case "Store":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOAScopedHolderStoreArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeStore(args)
+		return serviceReply(v, payload, err)
+	case "Rotate":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOAScopedHolderRotateArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeRotate(args)
+		return serviceReply(v, payload, err)
+	case "Revoke":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOAScopedHolderRevokeArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeRevoke(args)
+		return serviceReply(v, payload, err)
+	case "Metadata":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOAScopedHolderMetadataArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeMetadata(args)
+		return serviceReply(v, payload, err)
+	default:
+		return serviceReply(v, "", DispatchError("unknown_method"))
+	}
+}
+func (d *ScopedHolderDispatcher) invokeStore(args *oaScopedHolderStoreArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result StoreResult
+	result, err = d.Handler.Store(args.ExpectedRevision, args.Registration)
+	if err != nil {
+		return
+	}
+	value := oaScopedHolderStoreResult{Value: result}
+	payload = Raw(encOAScopedHolderStoreResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOAScopedHolderStoreResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+func (d *ScopedHolderDispatcher) invokeRotate(args *oaScopedHolderRotateArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result RotateResult
+	result, err = d.Handler.Rotate(args.ExpectedRevision, args.Rotation)
+	if err != nil {
+		return
+	}
+	value := oaScopedHolderRotateResult{Value: result}
+	payload = Raw(encOAScopedHolderRotateResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOAScopedHolderRotateResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+func (d *ScopedHolderDispatcher) invokeRevoke(args *oaScopedHolderRevokeArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result RevokeResult
+	result, err = d.Handler.Revoke(args.ExpectedRevision, args.Name)
+	if err != nil {
+		return
+	}
+	value := oaScopedHolderRevokeResult{Value: result}
+	payload = Raw(encOAScopedHolderRevokeResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOAScopedHolderRevokeResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+func (d *ScopedHolderDispatcher) invokeMetadata(args *oaScopedHolderMetadataArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result MetadataReadResult
+	result, err = d.Handler.Metadata(args.Name)
+	if err != nil {
+		return
+	}
+	value := oaScopedHolderMetadataResult{Value: result}
+	payload = Raw(encOAScopedHolderMetadataResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOAScopedHolderMetadataResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+
+type ScopedApplier interface {
+	Check(usage Use) (CheckResult, error)
+	Apply(usage Use) (ApplyResult, error)
+}
+type ScopedApplierTransport interface {
+	FrameExchanger
+}
+type ScopedApplierClient struct{ transport ScopedApplierTransport }
+
+func NewScopedApplierClient(t ScopedApplierTransport) *ScopedApplierClient {
+	return &ScopedApplierClient{transport: t}
+}
+
+type ScopedApplierDispatcher struct{ Handler ScopedApplier }
+
+func (c *ScopedApplierClient) Check(usage Use) (result CheckResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaScopedApplierCheckArguments{Usage: usage}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.credentials/applier@2", Method: "Check", Arguments: Raw(encOAScopedApplierCheckArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaScopedApplierCheckResult
+	decoded, err = r.decodeOAScopedApplierCheckResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+func (c *ScopedApplierClient) Apply(usage Use) (result ApplyResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaScopedApplierApplyArguments{Usage: usage}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.credentials/applier@2", Method: "Apply", Arguments: Raw(encOAScopedApplierApplyArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaScopedApplierApplyResult
+	decoded, err = r.decodeOAScopedApplierApplyResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+
+// DescribeService is this dispatcher's service as abstraction.facade/endpoint@1 Describe lists it:
+// ready unless its handler implements Ready() (bool, string) and reports otherwise.
+func (d *ScopedApplierDispatcher) DescribeService() (contract string, ready bool, why string) {
+	if h, ok := d.Handler.(interface{ Ready() (bool, string) }); ok {
+		if ready, why = h.Ready(); ready {
+			why = ""
+		}
+		return "abstraction.credentials/applier@2", ready, why
+	}
+	return "abstraction.credentials/applier@2", true, ""
+}
+
+// DescribeServiceMetadata returns optional handler display facts for Describe.
+// They grant no authority and do not change service admission.
+func (d *ScopedApplierDispatcher) DescribeServiceMetadata() (guarantees []string, capabilities map[string]string) {
+	if h, ok := d.Handler.(interface {
+		DescribeMetadata() ([]string, map[string]string)
+	}); ok {
+		return h.DescribeMetadata()
+	}
+	return nil, nil
+}
+
+// ServiceContract is the wire name ServeEndpoint routes this dispatcher's frames by.
+func (d *ScopedApplierDispatcher) ServiceContract() string {
+	return "abstraction.credentials/applier@2"
+}
+func (d *ScopedApplierDispatcher) WriteFrame(frame []byte) error {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return err
+	}
+	if v.Service != "abstraction.credentials/applier@2" {
+		return DispatchError("unknown_service")
+	}
+	switch v.Method {
+	case "Check":
+		return DispatchError("wrong_mode")
+	case "Apply":
+		return DispatchError("wrong_mode")
+	default:
+		return DispatchError("unknown_method")
+	}
+}
+func (d *ScopedApplierDispatcher) ExchangeFrame(frame []byte) ([]byte, error) {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return nil, err
+	}
+	if v.Service == EndpointContract {
+		return DescribeEndpoint(frame, "", "", d)
+	}
+	if v.Service != "abstraction.credentials/applier@2" {
+		return serviceReply(v, "", DispatchError("unknown_service"))
+	}
+	switch v.Method {
+	case "Check":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOAScopedApplierCheckArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeCheck(args)
+		return serviceReply(v, payload, err)
+	case "Apply":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOAScopedApplierApplyArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeApply(args)
+		return serviceReply(v, payload, err)
+	default:
+		return serviceReply(v, "", DispatchError("unknown_method"))
+	}
+}
+func (d *ScopedApplierDispatcher) invokeCheck(args *oaScopedApplierCheckArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result CheckResult
+	result, err = d.Handler.Check(args.Usage)
+	if err != nil {
+		return
+	}
+	value := oaScopedApplierCheckResult{Value: result}
+	payload = Raw(encOAScopedApplierCheckResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOAScopedApplierCheckResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+func (d *ScopedApplierDispatcher) invokeApply(args *oaScopedApplierApplyArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result ApplyResult
+	result, err = d.Handler.Apply(args.Usage)
+	if err != nil {
+		return
+	}
+	value := oaScopedApplierApplyResult{Value: result}
+	payload = Raw(encOAScopedApplierApplyResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOAScopedApplierApplyResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+
+func(r *reader)depthLimit()int{if r.limit>0 && r.limit<depthLimit{return r.limit};return depthLimit}
+
+func DecodeSubjectAt(in []byte,depth,limit int)(*Subject,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeSubject();return v,r.pos,e}
+func EncodeSubjectAt(v *Subject,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encSubject(nil,v,depth);if _,_,e:=DecodeSubjectAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeSubject(v *Subject)[]byte{return append(EncodeSubjectAt(v,0),"\n"...)}
+func DecodeSubject(in []byte)(*Subject,error){v,n,e:=DecodeSubjectAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeScopeAt(in []byte,depth,limit int)(*Scope,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeScope();return v,r.pos,e}
+func EncodeScopeAt(v *Scope,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encScope(nil,v,depth);if _,_,e:=DecodeScopeAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeScope(v *Scope)[]byte{return append(EncodeScopeAt(v,0),"\n"...)}
+func DecodeScope(in []byte)(*Scope,error){v,n,e:=DecodeScopeAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeMetadataAt(in []byte,depth,limit int)(*Metadata,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeMetadata();return v,r.pos,e}
+func EncodeMetadataAt(v *Metadata,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encMetadata(nil,v,depth);if _,_,e:=DecodeMetadataAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeMetadata(v *Metadata)[]byte{return append(EncodeMetadataAt(v,0),"\n"...)}
+func DecodeMetadata(in []byte)(*Metadata,error){v,n,e:=DecodeMetadataAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeRegistrationAt(in []byte,depth,limit int)(*Registration,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeRegistration();return v,r.pos,e}
+func EncodeRegistrationAt(v *Registration,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encRegistration(nil,v,depth);if _,_,e:=DecodeRegistrationAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeRegistration(v *Registration)[]byte{return append(EncodeRegistrationAt(v,0),"\n"...)}
+func DecodeRegistration(in []byte)(*Registration,error){v,n,e:=DecodeRegistrationAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeRotationAt(in []byte,depth,limit int)(*Rotation,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeRotation();return v,r.pos,e}
+func EncodeRotationAt(v *Rotation,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encRotation(nil,v,depth);if _,_,e:=DecodeRotationAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeRotation(v *Rotation)[]byte{return append(EncodeRotationAt(v,0),"\n"...)}
+func DecodeRotation(in []byte)(*Rotation,error){v,n,e:=DecodeRotationAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeStoreResultAt(in []byte,depth,limit int)(*StoreResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeStoreResult();return v,r.pos,e}
+func EncodeStoreResultAt(v *StoreResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encStoreResult(nil,v,depth);if _,_,e:=DecodeStoreResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeStoreResult(v *StoreResult)[]byte{return append(EncodeStoreResultAt(v,0),"\n"...)}
+func DecodeStoreResult(in []byte)(*StoreResult,error){v,n,e:=DecodeStoreResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeRotateResultAt(in []byte,depth,limit int)(*RotateResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeRotateResult();return v,r.pos,e}
+func EncodeRotateResultAt(v *RotateResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encRotateResult(nil,v,depth);if _,_,e:=DecodeRotateResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeRotateResult(v *RotateResult)[]byte{return append(EncodeRotateResultAt(v,0),"\n"...)}
+func DecodeRotateResult(in []byte)(*RotateResult,error){v,n,e:=DecodeRotateResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeRevokeResultAt(in []byte,depth,limit int)(*RevokeResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeRevokeResult();return v,r.pos,e}
+func EncodeRevokeResultAt(v *RevokeResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encRevokeResult(nil,v,depth);if _,_,e:=DecodeRevokeResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeRevokeResult(v *RevokeResult)[]byte{return append(EncodeRevokeResultAt(v,0),"\n"...)}
+func DecodeRevokeResult(in []byte)(*RevokeResult,error){v,n,e:=DecodeRevokeResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeLimitsAt(in []byte,depth,limit int)(*Limits,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeLimits();return v,r.pos,e}
+func EncodeLimitsAt(v *Limits,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encLimits(nil,v,depth);if _,_,e:=DecodeLimitsAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeLimits(v *Limits)[]byte{return append(EncodeLimitsAt(v,0),"\n"...)}
+func DecodeLimits(in []byte)(*Limits,error){v,n,e:=DecodeLimitsAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeMetadataPageAt(in []byte,depth,limit int)(*MetadataPage,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeMetadataPage();return v,r.pos,e}
+func EncodeMetadataPageAt(v *MetadataPage,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encMetadataPage(nil,v,depth);if _,_,e:=DecodeMetadataPageAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeMetadataPage(v *MetadataPage)[]byte{return append(EncodeMetadataPageAt(v,0),"\n"...)}
+func DecodeMetadataPage(in []byte)(*MetadataPage,error){v,n,e:=DecodeMetadataPageAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeAuditEntryAt(in []byte,depth,limit int)(*AuditEntry,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeAuditEntry();return v,r.pos,e}
+func EncodeAuditEntryAt(v *AuditEntry,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encAuditEntry(nil,v,depth);if _,_,e:=DecodeAuditEntryAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeAuditEntry(v *AuditEntry)[]byte{return append(EncodeAuditEntryAt(v,0),"\n"...)}
+func DecodeAuditEntry(in []byte)(*AuditEntry,error){v,n,e:=DecodeAuditEntryAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeAuditPageAt(in []byte,depth,limit int)(*AuditPage,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeAuditPage();return v,r.pos,e}
+func EncodeAuditPageAt(v *AuditPage,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encAuditPage(nil,v,depth);if _,_,e:=DecodeAuditPageAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeAuditPage(v *AuditPage)[]byte{return append(EncodeAuditPageAt(v,0),"\n"...)}
+func DecodeAuditPage(in []byte)(*AuditPage,error){v,n,e:=DecodeAuditPageAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeUseAt(in []byte,depth,limit int)(*Use,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeUse();return v,r.pos,e}
+func EncodeUseAt(v *Use,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encUse(nil,v,depth);if _,_,e:=DecodeUseAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeUse(v *Use)[]byte{return append(EncodeUseAt(v,0),"\n"...)}
+func DecodeUse(in []byte)(*Use,error){v,n,e:=DecodeUseAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeCredentialResourceAt(in []byte,depth,limit int)(*CredentialResource,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeCredentialResource();return v,r.pos,e}
+func EncodeCredentialResourceAt(v *CredentialResource,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encCredentialResource(nil,v,depth);if _,_,e:=DecodeCredentialResourceAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeCredentialResource(v *CredentialResource)[]byte{return append(EncodeCredentialResourceAt(v,0),"\n"...)}
+func DecodeCredentialResource(in []byte)(*CredentialResource,error){v,n,e:=DecodeCredentialResourceAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeCheckResultAt(in []byte,depth,limit int)(*CheckResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeCheckResult();return v,r.pos,e}
+func EncodeCheckResultAt(v *CheckResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encCheckResult(nil,v,depth);if _,_,e:=DecodeCheckResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeCheckResult(v *CheckResult)[]byte{return append(EncodeCheckResultAt(v,0),"\n"...)}
+func DecodeCheckResult(in []byte)(*CheckResult,error){v,n,e:=DecodeCheckResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeApplyResultAt(in []byte,depth,limit int)(*ApplyResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeApplyResult();return v,r.pos,e}
+func EncodeApplyResultAt(v *ApplyResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encApplyResult(nil,v,depth);if _,_,e:=DecodeApplyResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeApplyResult(v *ApplyResult)[]byte{return append(EncodeApplyResultAt(v,0),"\n"...)}
+func DecodeApplyResult(in []byte)(*ApplyResult,error){v,n,e:=DecodeApplyResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeSecretValueAt(in []byte,depth,limit int)(*SecretValue,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeSecretValue();return v,r.pos,e}
+func EncodeSecretValueAt(v *SecretValue,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encSecretValue(nil,v,depth);if _,_,e:=DecodeSecretValueAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeSecretValue(v *SecretValue)[]byte{return append(EncodeSecretValueAt(v,0),"\n"...)}
+func DecodeSecretValue(in []byte)(*SecretValue,error){v,n,e:=DecodeSecretValueAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeSecretReadResultAt(in []byte,depth,limit int)(*SecretReadResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeSecretReadResult();return v,r.pos,e}
+func EncodeSecretReadResultAt(v *SecretReadResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encSecretReadResult(nil,v,depth);if _,_,e:=DecodeSecretReadResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeSecretReadResult(v *SecretReadResult)[]byte{return append(EncodeSecretReadResultAt(v,0),"\n"...)}
+func DecodeSecretReadResult(in []byte)(*SecretReadResult,error){v,n,e:=DecodeSecretReadResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeMetadataReadResultAt(in []byte,depth,limit int)(*MetadataReadResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeMetadataReadResult();return v,r.pos,e}
+func EncodeMetadataReadResultAt(v *MetadataReadResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encMetadataReadResult(nil,v,depth);if _,_,e:=DecodeMetadataReadResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeMetadataReadResult(v *MetadataReadResult)[]byte{return append(EncodeMetadataReadResultAt(v,0),"\n"...)}
+func DecodeMetadataReadResult(in []byte)(*MetadataReadResult,error){v,n,e:=DecodeMetadataReadResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}

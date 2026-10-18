@@ -121,12 +121,23 @@ func endpointFor(t *testing.T) string {
 	return filepath.Join(dir, "s")
 }
 
+// programEndpoint is endpointFor for a test that serves Program-proof calls.
+// A macOS socket endpoint cannot carry that proof: the installed runtime
+// serves credentials-v1 over XPC there (CONTRACT.md "The native macOS
+// credential receiver requires message-bound Program proof from XPC"), so
+// such a test is skipped where the socket transport cannot meet it.
+func programEndpoint(t *testing.T) string {
+	t.Helper()
+	endpoint := endpointFor(t)
+	if err := listen.CanEver(endpoint, listen.Program); err != nil {
+		t.Skipf("this platform's socket endpoint cannot carry Program proof: %v", err)
+	}
+	return endpoint
+}
+
 func start(t *testing.T) *fixture {
 	t.Helper()
-	if runtime.GOOS == "darwin" {
-		t.Skip("UNPROVEN: the Darwin transport cannot meet Program proof; every call is refused there")
-	}
-	f := &fixture{endpoint: endpointFor(t), policy: &policy{rules: map[string]string{}}, errors: &bytes.Buffer{}}
+	f := &fixture{endpoint: programEndpoint(t), policy: &policy{rules: map[string]string{}}, errors: &bytes.Buffer{}}
 	holder, err := credentials.Open(credentials.Config{Backend: &memory{items: map[string][]byte{}}})
 	if err != nil {
 		t.Fatal(err)
@@ -389,4 +400,26 @@ func TestNoReplyCarriesSecretBytesToAnApplication(t *testing.T) {
 		}
 	}
 	t.Logf("%d replies searched for %d secrets in %d spellings", len(f.recorded.replies), len(secrets), len(encodings(nil)))
+}
+
+// Where the socket endpoint cannot carry Program proof (macOS), Listen
+// refuses before it creates the endpoint, so no caller is ever served at a
+// weaker proof than the receiver requires.
+func TestListenRefusesASocketThatCannotCarryProgramProof(t *testing.T) {
+	endpoint := endpointFor(t)
+	if listen.CanEver(endpoint, listen.Program) == nil {
+		t.Skip("this platform's socket endpoint carries Program proof; the served cases cover it")
+	}
+	holder, err := credentials.Open(credentials.Config{Backend: &memory{items: map[string][]byte{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decide := func(context.Context, wire.Subject, string, string) (string, error) { return "permitted", nil }
+	h, err := Listen(endpoint, holder, decide, nil)
+	if h != nil || !errors.Is(err, identity.ErrNotProven) {
+		t.Fatalf("Listen on a socket without Program proof: host %v, error %v", h != nil, err)
+	}
+	if _, err := os.Lstat(endpoint); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("the refused endpoint exists: %v", err)
+	}
 }

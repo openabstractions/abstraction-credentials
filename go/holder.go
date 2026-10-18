@@ -176,16 +176,43 @@ func Open(cfg Config) (*Holder, error) {
 			h.state = loaded
 		}
 	}
+	// A backend running with a weaker guarantee than its store word says so
+	// once, as a compiled label.
+	if d, ok := cfg.Backend.(degradable); ok {
+		if reason := d.degraded(); reason != "" {
+			h.report(fmt.Errorf("credentials: backend %s", reason))
+		}
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.collectGarbage()
 	return h, nil
 }
 
+// degradable is a backend that can run with a weaker guarantee than its store
+// word promises, such as the Credential Manager without its session lock.
+type degradable interface{ degraded() string }
+
 func (h *Holder) report(err error) {
 	if err != nil && h.cfg.OnError != nil {
 		h.cfg.OnError(err)
 	}
+}
+
+// reportBackend keeps provider diagnostics out of the holder's report sink.
+// Operations are compiled labels; no key, value, backend text or wrapped cause
+// crosses this boundary. State-file errors use report separately.
+func (h *Holder) reportBackend(operation string, err error) {
+	if err == nil {
+		return
+	}
+	status := "failed"
+	if errors.Is(err, ErrNotFound) {
+		status = "not_found"
+	} else if errors.Is(err, ErrUnavailable) {
+		status = "unavailable"
+	}
+	h.report(fmt.Errorf("credentials: backend %s %s", operation, status))
 }
 
 func (h *Holder) collectGarbage() {
@@ -195,6 +222,7 @@ func (h *Holder) collectGarbage() {
 	kept := h.state.Garbage[:0]
 	for _, key := range h.state.Garbage {
 		if err := h.cfg.Backend.Delete(key); err != nil {
+			h.reportBackend("garbage_delete", err)
 			kept = append(kept, key)
 		}
 	}
@@ -389,7 +417,7 @@ func subjectPtr(s wire.Subject) *wire.Subject { return &s }
 // the receiving boundary bound; authorization happens before this call. The
 // secret slice is zeroed before Store returns.
 func (h *Holder) Store(caller wire.Subject, expected string, reg wire.Registration) wire.StoreResult {
-	return h.register(caller, expected, reg, false)
+	return h.register(caller, expected, reg, false, nil, false)
 }
 
 // StoreLocalKey registers a local key the runtime minted, as kind
@@ -399,10 +427,10 @@ func (h *Holder) StoreLocalKey(caller wire.Subject, reg wire.Registration) wire.
 		defer zero(reg.Secret)
 		return wire.StoreResult{Outcome: wire.StoreOutcomeInvalid}
 	}
-	return h.register(caller, "", reg, true)
+	return h.register(caller, "", reg, true, nil, false)
 }
 
-func (h *Holder) register(caller wire.Subject, expected string, reg wire.Registration, localKey bool) wire.StoreResult {
+func (h *Holder) register(caller wire.Subject, expected string, reg wire.Registration, localKey bool, guard AuthorizationGuard, scoped bool) wire.StoreResult {
 	defer zero(reg.Secret)
 	refuse := func(outcome wire.StoreOutcome) wire.StoreResult { return wire.StoreResult{Outcome: outcome} }
 	if !validSubject(caller) || !namePattern.MatchString(reg.Name) || len(expected) > 128 ||
@@ -432,8 +460,17 @@ func (h *Holder) register(caller wire.Subject, expected string, reg wire.Registr
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sweep(caller.Account)
+	if decision := runGuard(guard); decision != Authorized {
+		if decision == AuthorizationDenied {
+			return refuse(wire.StoreOutcomeForbidden)
+		}
+		return refuse(wire.StoreOutcomeUnavailable)
+	}
 	records := h.state.Accounts[caller.Account]
 	if existing := records[reg.Name]; existing != nil {
+		if scoped && !savedSecret(existing) {
+			return refuse(wire.StoreOutcomeUnsupportedKind)
+		}
 		return wire.StoreResult{Outcome: wire.StoreOutcomeConflict, Revision: existing.Revision, Current: metadata(existing)}
 	}
 	if expected != "" {
@@ -463,7 +500,7 @@ func (h *Holder) register(caller wire.Subject, expected string, reg wire.Registr
 	if err := h.save(); err != nil {
 		delete(records, reg.Name)
 		h.report(err)
-		h.report(backend.Delete(key))
+		h.reportBackend("store_cleanup_delete", backend.Delete(key))
 		return refuse(wire.StoreOutcomeUnavailable)
 	}
 	h.appendAudit(caller.Account, wire.AuditEntry{Event: "stored", Name: reg.Name, Revision: revision, Subject: subjectPtr(caller), Outcome: "stored"})
@@ -480,7 +517,7 @@ func (h *Holder) write(backend Backend, key string, secret []byte) bool {
 		return false
 	}
 	if err := backend.Put(key, secret); err != nil {
-		h.report(err)
+		h.reportBackend("put", err)
 		h.forget(key)
 		h.report(h.save())
 		return false
@@ -497,6 +534,10 @@ func (h *Holder) forget(key string) {
 // Rotate replaces the bytes and expiry of an existing record. The secret slice
 // is zeroed before Rotate returns.
 func (h *Holder) Rotate(caller wire.Subject, expected string, rotation wire.Rotation) wire.RotateResult {
+	return h.rotate(caller, expected, rotation, nil, false)
+}
+
+func (h *Holder) rotate(caller wire.Subject, expected string, rotation wire.Rotation, guard AuthorizationGuard, scoped bool) wire.RotateResult {
 	name, secret := rotation.Name, rotation.Secret
 	defer zero(secret)
 	refuse := func(outcome wire.RotateOutcome) wire.RotateResult { return wire.RotateResult{Outcome: outcome} }
@@ -515,7 +556,16 @@ func (h *Holder) Rotate(caller wire.Subject, expected string, rotation wire.Rota
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sweep(caller.Account)
+	if decision := runGuard(guard); decision != Authorized {
+		if decision == AuthorizationDenied {
+			return refuse(wire.RotateOutcomeForbidden)
+		}
+		return refuse(wire.RotateOutcomeUnavailable)
+	}
 	r := h.state.Accounts[caller.Account][name]
+	if scoped && !savedSecret(r) {
+		return refuse(wire.RotateOutcomeForbidden)
+	}
 	if r == nil || r.State == "revoked" {
 		return refuse(wire.RotateOutcomeUnknown)
 	}
@@ -542,12 +592,16 @@ func (h *Holder) Rotate(caller wire.Subject, expected string, rotation wire.Rota
 		*r = previous
 		h.forget(oldKey)
 		h.report(err)
-		h.report(backend.Delete(key))
+		h.reportBackend("rotate_cleanup_delete", backend.Delete(key))
 		return refuse(wire.RotateOutcomeUnavailable)
 	}
-	if oldKey != "" && backend.Delete(oldKey) == nil {
-		h.forget(oldKey)
-		h.report(h.save())
+	if oldKey != "" {
+		if err := backend.Delete(oldKey); err == nil {
+			h.forget(oldKey)
+			h.report(h.save())
+		} else {
+			h.reportBackend("rotate_delete", err)
+		}
 	}
 	h.appendAudit(caller.Account, wire.AuditEntry{Event: "rotated", Name: name, Revision: revision, Subject: subjectPtr(caller), Outcome: "rotated"})
 	return wire.RotateResult{Outcome: wire.RotateOutcomeRotated, Revision: revision, Current: metadata(r)}
@@ -555,13 +609,26 @@ func (h *Holder) Rotate(caller wire.Subject, expected string, rotation wire.Rota
 
 // Revoke destroys the bytes and keeps a tombstone.
 func (h *Holder) Revoke(caller wire.Subject, expected, name string) wire.RevokeResult {
+	return h.revoke(caller, expected, name, nil, false)
+}
+
+func (h *Holder) revoke(caller wire.Subject, expected, name string, guard AuthorizationGuard, scoped bool) wire.RevokeResult {
 	if !validSubject(caller) || !namePattern.MatchString(name) || expected == "" || len(expected) > 128 {
 		return wire.RevokeResult{Outcome: wire.RevokeOutcomeInvalid}
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sweep(caller.Account)
+	if decision := runGuard(guard); decision != Authorized {
+		if decision == AuthorizationDenied {
+			return wire.RevokeResult{Outcome: wire.RevokeOutcomeForbidden}
+		}
+		return wire.RevokeResult{Outcome: wire.RevokeOutcomeUnavailable}
+	}
 	r := h.state.Accounts[caller.Account][name]
+	if scoped && !savedSecret(r) {
+		return wire.RevokeResult{Outcome: wire.RevokeOutcomeForbidden}
+	}
 	if r == nil || r.State == "revoked" {
 		return wire.RevokeResult{Outcome: wire.RevokeOutcomeUnknown}
 	}
@@ -574,7 +641,7 @@ func (h *Holder) Revoke(caller wire.Subject, expected, name string) wire.RevokeR
 			return wire.RevokeResult{Outcome: wire.RevokeOutcomeUnavailable}
 		}
 		if err := backend.Delete(r.Key); err != nil {
-			h.report(err)
+			h.reportBackend("revoke_delete", err)
 			return wire.RevokeResult{Outcome: wire.RevokeOutcomeUnavailable}
 		}
 	}
@@ -603,6 +670,12 @@ func RefusedMetadataPage(outcome wire.PageOutcome) wire.MetadataPage {
 
 // List pages the account's records, tombstones included, in name order.
 func (h *Holder) List(account, cursor string, limit int64) wire.MetadataPage {
+	return h.ListAuthorized(account, cursor, limit, nil)
+}
+
+// ListAuthorized uses the legacy account-wide admission and its shared block
+// fence in the same owner lock as metadata disclosure.
+func (h *Holder) ListAuthorized(account, cursor string, limit int64, guard AuthorizationGuard) wire.MetadataPage {
 	refuse := func(outcome wire.PageOutcome) wire.MetadataPage {
 		return RefusedMetadataPage(outcome)
 	}
@@ -627,6 +700,12 @@ func (h *Holder) List(account, cursor string, limit int64) wire.MetadataPage {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sweep(account)
+	if decision := runGuard(guard); decision != Authorized {
+		if decision == AuthorizationDenied {
+			return refuse(wire.PageOutcomeForbidden)
+		}
+		return refuse(wire.PageOutcomeUnavailable)
+	}
 	records := h.state.Accounts[account]
 	names := make([]string, 0, len(records))
 	for name := range records {
@@ -650,6 +729,10 @@ func (h *Holder) List(account, cursor string, limit int64) wire.MetadataPage {
 
 // Audit pages the account's retained journal after cursor.
 func (h *Holder) Audit(account, cursor string, maxEntries int64) wire.AuditPage {
+	return h.AuditAuthorized(account, cursor, maxEntries, nil)
+}
+
+func (h *Holder) AuditAuthorized(account, cursor string, maxEntries int64, guard AuthorizationGuard) wire.AuditPage {
 	refuse := func(outcome wire.PageOutcome) wire.AuditPage {
 		return wire.AuditPage{Outcome: outcome, Entries: []wire.AuditEntry{}, Next: cursor}
 	}
@@ -674,6 +757,12 @@ func (h *Holder) Audit(account, cursor string, maxEntries int64) wire.AuditPage 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sweep(account)
+	if decision := runGuard(guard); decision != Authorized {
+		if decision == AuthorizationDenied {
+			return refuse(wire.PageOutcomeForbidden)
+		}
+		return refuse(wire.PageOutcomeUnavailable)
+	}
 	j := h.audit[account]
 	if j == nil {
 		j = &journal{next: 1}
@@ -740,6 +829,7 @@ func (h *Holder) VerifyLocalKey(account, name string, presented []byte) string {
 		return "unavailable"
 	}
 	held, err := backend.Get(key)
+	defer zero(held)
 	if errors.Is(err, ErrNotFound) {
 		h.mu.Lock()
 		if r := h.state.Accounts[account][name]; r != nil && r.Revision == revision && r.State == "active" {
@@ -751,10 +841,9 @@ func (h *Holder) VerifyLocalKey(account, name string, presented []byte) string {
 		return "lost"
 	}
 	if err != nil {
-		h.report(err)
+		h.reportBackend("verify_get", err)
 		return "unavailable"
 	}
-	defer zero(held)
 	if subtle.ConstantTimeCompare(held, presented) != 1 {
 		return "mismatch"
 	}
@@ -763,13 +852,31 @@ func (h *Holder) VerifyLocalKey(account, name string, presented []byte) string {
 
 // Check evaluates a use without reading the secret.
 func (h *Holder) Check(ctx context.Context, use wire.Use, decide Decider) wire.CheckResult {
-	outcome, revision, _ := h.evaluate(ctx, use, decide, false)
+	outcome, revision, _ := h.evaluate(ctx, use, decide, false, nil, false, nil)
 	return wire.CheckResult{Outcome: outcome, Revision: revision}
+}
+
+// RecordCancel appends one `cancel` entry for use: a consuming service sent
+// headers an earlier Apply returned, once more, only to cancel upstream work
+// after that use was refused (CRED-A7). It reads no secret and decides
+// nothing; a use that names no credential this account holds records the
+// entry with no revision.
+func (h *Holder) RecordCancel(use wire.Use) {
+	if !validUse(use) {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	revision := ""
+	if r := h.state.Accounts[use.Subject.Account][use.Name]; r != nil {
+		revision = r.Revision
+	}
+	h.appendAudit(use.Subject.Account, wire.AuditEntry{Event: "cancel", Name: use.Name, Revision: revision, Subject: subjectPtr(use.Subject), Consumer: use.Consumer, Target: use.Target, Outcome: "cancel"})
 }
 
 // Apply evaluates a use and returns the headers for one request.
 func (h *Holder) Apply(ctx context.Context, use wire.Use, decide Decider) wire.ApplyResult {
-	outcome, revision, headers := h.evaluate(ctx, use, decide, true)
+	outcome, revision, headers := h.evaluate(ctx, use, decide, true, nil, false, nil)
 	return wire.ApplyResult{Outcome: outcome, Revision: revision, Headers: headers}
 }
 
@@ -782,12 +889,69 @@ func matchesTarget(scope []string, target string) bool {
 	return false
 }
 
-func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, read bool) (wire.ApplyOutcome, string, map[string]string) {
+// useEligibility checks the current record under the holder lock, after sweep.
+// A name can be retired and registered again while its rights decision waits.
+func useEligibility(r *record, use wire.Use, scoped bool) wire.ApplyOutcome {
+	if scoped && !savedSecret(r) {
+		return wire.ApplyOutcomeUnsupportedKind
+	}
+	switch {
+	case r == nil:
+		return wire.ApplyOutcomeUnknown
+	case r.State == "revoked" || r.State == "expired" || r.State == "lost":
+		outcome, _ := wire.ParseApplyOutcome(string(r.State))
+		return outcome
+	case !slices.Contains(SupportedKinds, r.Kind):
+		return wire.ApplyOutcomeUnsupportedKind
+	case use.Challenge != "":
+		return wire.ApplyOutcomeInvalid
+	case !slices.Contains(r.Scope.Consumers, use.Consumer):
+		return wire.ApplyOutcomeConsumerRefused
+	case !matchesTarget(r.Scope.Targets, use.Target):
+		return wire.ApplyOutcomeTargetRefused
+	}
+	return 0
+}
+
+func useRevision(r *record, scoped bool) string {
+	if r == nil || scoped && !savedSecret(r) {
+		return ""
+	}
+	return r.Revision
+}
+
+func validUse(use wire.Use) bool {
+	return validSubject(use.Subject) && consumerPattern.MatchString(use.Consumer) && namePattern.MatchString(use.Name) && validHost(use.Target) && len(use.Challenge) <= 4096
+}
+
+// useAuthorizationDetail accepts only evidence consistent with the same guard
+// result. Identity/context refusals carry no Rights word; arbitrary diagnostics
+// cannot enter audit through this trusted callback seam.
+func useAuthorizationDetail(v Authorization, decision AuthorizationOutcome) string {
+	if v.Outcome != decision {
+		return ""
+	}
+	switch decision {
+	case AuthorizationDenied:
+		switch v.RightsOutcome {
+		case "denied", "not_granted", "unknown_action":
+			return v.RightsOutcome
+		}
+	case AuthorizationUnavailable:
+		switch v.RightsOutcome {
+		case "forbidden", "invalid", "unavailable":
+			return "rights:" + v.RightsOutcome
+		}
+	}
+	return ""
+}
+
+func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, read bool, guard AuthorizationGuard, scoped bool, evidence *Authorization) (wire.ApplyOutcome, string, map[string]string) {
 	event := "checked"
 	if read {
 		event = "applied"
 	}
-	if !validSubject(use.Subject) || !consumerPattern.MatchString(use.Consumer) || !namePattern.MatchString(use.Name) || !validHost(use.Target) || len(use.Challenge) > 4096 {
+	if !validUse(use) {
 		return wire.ApplyOutcomeInvalid, "", nil
 	}
 	h.mu.Lock()
@@ -802,28 +966,32 @@ func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, rea
 		}
 		h.appendAudit(account, wire.AuditEntry{Event: word, Name: use.Name, Revision: revision, Subject: subjectPtr(use.Subject), Consumer: use.Consumer, Target: use.Target, Outcome: detail})
 	}
-	h.sweep(account)
-	r := h.state.Accounts[account][use.Name]
-	var outcome wire.ApplyOutcome
-	switch {
-	case r == nil:
-		outcome = wire.ApplyOutcomeUnknown
-	case r.State == "revoked" || r.State == "expired" || r.State == "lost":
-		outcome, _ = wire.ParseApplyOutcome(string(r.State))
-	case !slices.Contains(SupportedKinds, r.Kind):
-		outcome = wire.ApplyOutcomeUnsupportedKind
-	case use.Challenge != "":
-		outcome = wire.ApplyOutcomeInvalid
-	case !slices.Contains(r.Scope.Consumers, use.Consumer):
-		outcome = wire.ApplyOutcomeConsumerRefused
-	case !matchesTarget(r.Scope.Targets, use.Target):
-		outcome = wire.ApplyOutcomeTargetRefused
-	}
-	if outcome != 0 {
-		revision := ""
-		if r != nil {
-			revision = r.Revision
+	checkGuard := func() (AuthorizationOutcome, string) {
+		// Each invocation must replace its own per-call evidence. Clear first so
+		// a guard that only returns a classification cannot reuse prior Rights.
+		if evidence != nil {
+			*evidence = Authorization{}
 		}
+		decision := runGuard(guard)
+		var current Authorization
+		if evidence != nil {
+			current = *evidence
+		}
+		return decision, useAuthorizationDetail(current, decision)
+	}
+	h.sweep(account)
+	if decision, detail := checkGuard(); decision != Authorized {
+		outcome := wire.ApplyOutcomeUnavailable
+		if decision == AuthorizationDenied {
+			outcome = wire.ApplyOutcomeNotPermitted
+		}
+		finish(outcome, "", detail)
+		h.mu.Unlock()
+		return outcome, "", nil
+	}
+	r := h.state.Accounts[account][use.Name]
+	if outcome := useEligibility(r, use, scoped); outcome != 0 {
+		revision := useRevision(r, scoped)
 		finish(outcome, revision, "")
 		h.mu.Unlock()
 		return outcome, revision, nil
@@ -840,6 +1008,15 @@ func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, rea
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.sweep(account)
+	if decision, detail := checkGuard(); decision != Authorized {
+		outcome := wire.ApplyOutcomeUnavailable
+		if decision == AuthorizationDenied {
+			outcome = wire.ApplyOutcomeNotPermitted
+		}
+		finish(outcome, "", detail)
+		return outcome, "", nil
+	}
 	r = h.state.Accounts[account][use.Name]
 	if r == nil {
 		finish(wire.ApplyOutcomeUnknown, "", "")
@@ -854,10 +1031,10 @@ func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, rea
 		finish(wire.ApplyOutcomeUnavailable, r.Revision, "rights:"+word)
 		return wire.ApplyOutcomeUnavailable, r.Revision, nil
 	}
-	if r.State != "active" {
-		stateOutcome, _ := wire.ParseApplyOutcome(string(r.State))
-		finish(stateOutcome, r.Revision, "")
-		return stateOutcome, r.Revision, nil
+	if outcome := useEligibility(r, use, scoped); outcome != 0 {
+		revision := useRevision(r, scoped)
+		finish(outcome, revision, "")
+		return outcome, revision, nil
 	}
 	if !read {
 		finish(wire.ApplyOutcomeApplied, r.Revision, "")
@@ -869,6 +1046,22 @@ func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, rea
 		return wire.ApplyOutcomeUnavailable, r.Revision, nil
 	}
 	secret, err := backend.Get(r.Key)
+	defer zero(secret)
+	if decision, detail := checkGuard(); decision != Authorized {
+		outcome := wire.ApplyOutcomeUnavailable
+		if decision == AuthorizationDenied {
+			outcome = wire.ApplyOutcomeNotPermitted
+		}
+		finish(outcome, "", detail)
+		return outcome, "", nil
+	}
+	h.sweep(account)
+	r = h.state.Accounts[account][use.Name]
+	if outcome := useEligibility(r, use, scoped); outcome != 0 {
+		revision := useRevision(r, scoped)
+		finish(outcome, revision, "")
+		return outcome, revision, nil
+	}
 	if errors.Is(err, ErrNotFound) {
 		r.State = "lost"
 		h.report(h.save())
@@ -877,11 +1070,10 @@ func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, rea
 		return wire.ApplyOutcomeLost, r.Revision, nil
 	}
 	if err != nil {
-		h.report(err)
+		h.reportBackend("apply_get", err)
 		finish(wire.ApplyOutcomeUnavailable, r.Revision, "")
 		return wire.ApplyOutcomeUnavailable, r.Revision, nil
 	}
-	defer zero(secret)
 	headers := map[string]string{}
 	if r.Kind == "bearer" {
 		headers["Authorization"] = "Bearer " + string(secret)

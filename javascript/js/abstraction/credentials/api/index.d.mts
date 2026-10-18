@@ -76,6 +76,21 @@ export interface CheckResult {
   revision: string;
 }
 
+// An account-owned credential name slot. name is 1..64 ASCII letters, digits,
+// '_', '.' or '-'; the old exact rights resource is credential:<name>.
+// Account/program bind separately at the receiving boundary. The canonical
+// generated document is the target of named-secret@1 and named-use@2, whose
+// collection is saved application credentials of kinds accepted by Store;
+// runtime local-key@1 records are excluded. named-use@1 retains its original
+// exact route. Name grants follow the current slot, including rotation and a
+// recreated registration's current restrictions. Read discloses the current
+// value to the bound requesting program under a distinct permission. Management
+// operations convey only their explicit supported effects. Every target
+// operation revalidates current membership, state and expiry after waits.
+export interface CredentialResource {
+  name: string;
+}
+
 export declare class DispatchError extends Error {
   constructor(code: string);
   code: string;
@@ -142,6 +157,19 @@ export interface MetadataPage {
   records: Metadata[];
   next: string;
   complete: boolean;
+}
+
+export type MetadataReadOutcome = (typeof MetadataReadOutcome)[keyof typeof MetadataReadOutcome];
+export declare const MetadataReadOutcome: Readonly<{ Found: "found"; Unknown: "unknown"; Invalid: "invalid"; Forbidden: "forbidden"; Unavailable: "unavailable"; Conflict: "conflict" }>;
+
+// found carries only the authorized name's current metadata, including an
+// expired/lost record or a tombstone inside retention. Other outcomes carry no
+// current or revision. This lookup supports conditional-edit reconciliation
+// without account List/Audit access. Runtime-managed records are outside the
+// collection and read forbidden.
+export interface MetadataReadResult {
+  outcome: MetadataReadOutcome;
+  current: Metadata | null;
 }
 
 export type PageOutcome = (typeof PageOutcome)[keyof typeof PageOutcome];
@@ -213,6 +241,70 @@ export interface Scope {
   consumers: string[];
 }
 
+/** Explicit selector-aware service-mediated Use for the saved-app-secret collection. Old applier@1 requests retain their selected authority route; current explicit equivalent blocks apply through the shared Rights owner. Missing scoped policy configuration is unavailable. Runtime-managed keys read unsupported_kind. All support is profile-specific and disclosed; Apply conveys no raw requester Read or management authority. */
+export declare class ScopedApplierClient {
+  constructor(transport: FrameTransport);
+  /** Check one use through the explicit named-use@2 selector route; no secret is read. Same designated enforcer, bound subject, current saved-app-secret membership, consumer/target and expiry checks as Apply. */
+  check(usage: Use): Promise<CheckResult>;
+  /** Apply one saved app secret through the explicit named-use@2 route. Only a designated receiving enforcer may assert the submitting subject. Recheck every request, redirect and resumed range; headers leave only to that service. No fallback to the legacy named-use@1 route. */
+  apply(usage: Use): Promise<ApplyResult>;
+}
+
+export declare const ScopedApplierService: Readonly<{ wireName: "abstraction.credentials/applier@2"; Client: typeof ScopedApplierClient }>;
+
+/** Name-scoped management of saved application credentials accepted by Store. Native subject is bound at the receiver. Each method has its distinct permission and final quiet rights/identity check after waits inside the holder edit. Runtime local-key@1 is excluded. Explicit overlapping legacy/typed blocks are enforced by the shared Rights compatibility owner; permits stay profile-specific. Name permits follow current/recreated slots. No permission-administration, enumeration or raw Read authority is implied. */
+export declare class ScopedHolderClient {
+  constructor(transport: FrameTransport);
+  /** Conditionally create one name under secret.create/named-secret@1. Reuses Store's bounds, persistence and expected-revision owner. Both unsupported input kind and an existing/tombstoned excluded runtime-managed slot return unsupported_kind without current metadata/revision, before ordinary conflict handling. */
+  store(expectedRevision: string, registration: Registration): Promise<StoreResult>;
+  /** Conditionally rotate one saved app name under secret.rotate/named-secret@1. Kind/scope stay unchanged. Reloaded excluded membership reads forbidden without current/revision; no bytes are written. Stale record revisions retain ordinary conditional conflict semantics. */
+  rotate(expectedRevision: string, rotation: Rotation): Promise<RotateResult>;
+  /** Conditionally revoke one saved app name under secret.revoke/named-secret@1. Reloaded excluded membership reads forbidden without revision; no bytes are destroyed. Current tombstone/expiry/revision rules retain their owner. */
+  revoke(expectedRevision: string, name: string): Promise<RevokeResult>;
+  /** Inspect one saved app name under secret.metadata.read/named-secret@1, after native recipient and permission checks. Enumerates no names, returns no values and admits no account List/Audit authority. */
+  metadata(name: string): Promise<MetadataReadResult>;
+}
+
+export declare const ScopedHolderService: Readonly<{ wireName: "abstraction.credentials/holder@2"; Client: typeof ScopedHolderClient }>;
+
+export type SecretReadOutcome = (typeof SecretReadOutcome)[keyof typeof SecretReadOutcome];
+export declare const SecretReadOutcome: Readonly<{ Read: "read"; Unknown: "unknown"; Expired: "expired"; Revoked: "revoked"; Lost: "lost"; Invalid: "invalid"; Forbidden: "forbidden"; Unavailable: "unavailable"; Conflict: "conflict"; UnsupportedKind: "unsupported_kind" }>;
+
+// value is present exactly for read. Every refusal has no name, revision, value
+// or derived byte data. Native recipient and explicit Read authority are
+// checked before any existence/state disclosure and again before returning
+// bytes or a state-bearing result. forbidden covers absent authority and an
+// unproven/foreign recipient. conflict means the selected policy snapshot
+// became stale; no bytes are returned. Runtime-managed local-key@1 is outside
+// this collection and reads unsupported_kind only after authorization.
+// Consumer/website restrictions constrain service-mediated Use; raw Read
+// explicitly exports the value to the requesting application.
+export interface SecretReadResult {
+  outcome: SecretReadOutcome;
+  value: SecretValue | null;
+}
+
+/** Separately selected requester-facing raw value disclosure. Old Apply, metadata and manage permissions confer no Read. Nil scoped policy configuration or unavailable native Program proof refuses access. Every call reloads the current slot and checks expiry/membership and current authority; every forbidden caller receives no record state. This interface changes no legacy profile's granted operation set. */
+export declare class SecretReaderClient {
+  constructor(transport: FrameTransport);
+  /** Read one current saved application secret for the native Program-bound same-account requester. No caller-supplied subject/recipient/consumer/target is accepted. Requires secret.read under named-secret@1. Missing permission may admit an exact structured permission request; the original call remains refused. No value is cached across calls, and no failed/uncertain call is automatically retried. */
+  read(name: string): Promise<SecretReadResult>;
+}
+
+export declare const SecretReaderService: Readonly<{ wireName: "abstraction.credentials/reader@1"; Client: typeof SecretReaderClient }>;
+
+// Successful reader@1 response only. name is the requested canonical slot and
+// revision is the actual current record revision. secret is a fresh copy of
+// 1..4096 bytes, within the configured store's limit. The receiving application
+// owns this returned copy and clears it after use; no client/provider retains
+// or logs it. No metadata, audit, history, error, Asks record or diagnostic
+// contains the value or a derivative.
+export interface SecretValue {
+  name: string;
+  revision: string;
+  secret: Uint8Array;
+}
+
 export type SecureStore = (typeof SecureStore)[keyof typeof SecureStore];
 export declare const SecureStore: Readonly<{ WindowsCredentialManager: "windows-credential-manager"; SecretService: "secret-service"; File0600: "file-0600"; MacosKeychain: "macos-keychain"; None: "none" }>;
 
@@ -274,9 +366,85 @@ export declare const credentialKinds: readonly ["bearer", "header"];
 
 export declare function decode(data: Uint8Array): Registration;
 
+export declare function decodeApplyResult(data: Uint8Array): ApplyResult;
+
+export declare function decodeAuditEntry(data: Uint8Array): AuditEntry;
+
+export declare function decodeAuditPage(data: Uint8Array): AuditPage;
+
+export declare function decodeCheckResult(data: Uint8Array): CheckResult;
+
+export declare function decodeCredentialResource(data: Uint8Array): CredentialResource;
+
+export declare function decodeLimits(data: Uint8Array): Limits;
+
+export declare function decodeMetadata(data: Uint8Array): Metadata;
+
+export declare function decodeMetadataPage(data: Uint8Array): MetadataPage;
+
+export declare function decodeMetadataReadResult(data: Uint8Array): MetadataReadResult;
+
+export declare function decodeRegistration(data: Uint8Array): Registration;
+
+export declare function decodeRevokeResult(data: Uint8Array): RevokeResult;
+
+export declare function decodeRotateResult(data: Uint8Array): RotateResult;
+
+export declare function decodeRotation(data: Uint8Array): Rotation;
+
+export declare function decodeScope(data: Uint8Array): Scope;
+
+export declare function decodeSecretReadResult(data: Uint8Array): SecretReadResult;
+
+export declare function decodeSecretValue(data: Uint8Array): SecretValue;
+
+export declare function decodeStoreResult(data: Uint8Array): StoreResult;
+
+export declare function decodeSubject(data: Uint8Array): Subject;
+
+export declare function decodeUse(data: Uint8Array): Use;
+
 export declare function encode(v: Registration): Uint8Array;
 
-export declare const executionGuarantees: readonly ["abstraction.download/credentials@1"];
+export declare function encodeApplyResult(v: ApplyResult): Uint8Array;
+
+export declare function encodeAuditEntry(v: AuditEntry): Uint8Array;
+
+export declare function encodeAuditPage(v: AuditPage): Uint8Array;
+
+export declare function encodeCheckResult(v: CheckResult): Uint8Array;
+
+export declare function encodeCredentialResource(v: CredentialResource): Uint8Array;
+
+export declare function encodeLimits(v: Limits): Uint8Array;
+
+export declare function encodeMetadata(v: Metadata): Uint8Array;
+
+export declare function encodeMetadataPage(v: MetadataPage): Uint8Array;
+
+export declare function encodeMetadataReadResult(v: MetadataReadResult): Uint8Array;
+
+export declare function encodeRegistration(v: Registration): Uint8Array;
+
+export declare function encodeRevokeResult(v: RevokeResult): Uint8Array;
+
+export declare function encodeRotateResult(v: RotateResult): Uint8Array;
+
+export declare function encodeRotation(v: Rotation): Uint8Array;
+
+export declare function encodeScope(v: Scope): Uint8Array;
+
+export declare function encodeSecretReadResult(v: SecretReadResult): Uint8Array;
+
+export declare function encodeSecretValue(v: SecretValue): Uint8Array;
+
+export declare function encodeStoreResult(v: StoreResult): Uint8Array;
+
+export declare function encodeSubject(v: Subject): Uint8Array;
+
+export declare function encodeUse(v: Use): Uint8Array;
+
+export declare const executionGuarantees: readonly ["abstraction.download/credentials@1", "abstraction.download/credentials@2"];
 
 export declare function newApplyResult(): ApplyResult;
 
@@ -286,11 +454,15 @@ export declare function newAuditPage(): AuditPage;
 
 export declare function newCheckResult(): CheckResult;
 
+export declare function newCredentialResource(): CredentialResource;
+
 export declare function newLimits(): Limits;
 
 export declare function newMetadata(): Metadata;
 
 export declare function newMetadataPage(): MetadataPage;
+
+export declare function newMetadataReadResult(): MetadataReadResult;
 
 export declare function newRegistration(): Registration;
 
@@ -302,12 +474,16 @@ export declare function newRotation(): Rotation;
 
 export declare function newScope(): Scope;
 
+export declare function newSecretReadResult(): SecretReadResult;
+
+export declare function newSecretValue(): SecretValue;
+
 export declare function newStoreResult(): StoreResult;
 
 export declare function newSubject(): Subject;
 
 export declare function newUse(): Use;
 
-export declare const resourceActions: readonly ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply"];
+export declare const resourceActions: readonly ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"];
 
 export {};

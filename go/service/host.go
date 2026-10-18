@@ -43,7 +43,8 @@ type Host struct {
 	// before replying. Assign before Serve. Only the bound subject and credential
 	// name are passed; secrets remain in the holder. Observer failures go to
 	// OnError and do not undo the stored credential.
-	OnStored func(context.Context, wire.Subject, string) error
+	OnStored      func(context.Context, wire.Subject, string) error
+	Authorization AuthorizationConfig
 }
 
 // Listen requires an explicit holder and decision function. A nil enforcer
@@ -119,13 +120,20 @@ func (h *Host) Serve(ctx context.Context) error {
 			call, err := listen.ReceiveFramed(callCtx, conn, listen.Program, MaxFrameBytes)
 			if call != nil {
 				defer call.Close()
+				defer zero(call.Frame)
 			}
 			if err == nil {
 				base := receiver{host: h, call: call, ctx: callCtx}
+				reader := &secretReaderReceiver{receiver: base}
+				defer func() { zero(reader.value) }()
 				var reply []byte
 				reply, err = wire.ServeEndpoint(call.Frame, "openabstractions", "",
 					&wire.HolderDispatcher{Handler: &holderReceiver{base}},
-					&wire.ApplierDispatcher{Handler: &applierReceiver{base}})
+					&wire.ApplierDispatcher{Handler: &applierReceiver{base}},
+					&wire.SecretReaderDispatcher{Handler: reader},
+					&wire.ScopedHolderDispatcher{Handler: &scopedHolderReceiver{base}},
+					&wire.ScopedApplierDispatcher{Handler: &scopedApplierReceiver{applierReceiver{base}}})
+				defer zero(reply)
 				if err == nil {
 					err = call.Reply(reply)
 				}
@@ -252,12 +260,12 @@ func pageRefusal(word string) wire.PageOutcome {
 }
 
 func (r *holderReceiver) Store(expected string, reg wire.Registration) (wire.StoreResult, error) {
-	subject, refusal := r.authorize(credentials.ActionManage)
+	subject, guard, refusal := r.legacyNamedAdmission(credentials.ActionManage, credentials.ActionSecretCreate, reg.Name)
 	if refusal != "" {
 		zero(reg.Secret)
 		return wire.StoreResult{Outcome: storeRefusal(refusal)}, nil
 	}
-	result := r.host.holder.Store(subject, expected, reg)
+	result := r.host.holder.StoreNamedAuthorized(subject, expected, reg, guard)
 	if result.Outcome == wire.StoreOutcomeStored && r.host.OnStored != nil {
 		if err := r.host.OnStored(r.ctx, subject, reg.Name); err != nil && r.host.OnError != nil {
 			r.host.OnError(err)
@@ -267,36 +275,36 @@ func (r *holderReceiver) Store(expected string, reg wire.Registration) (wire.Sto
 }
 
 func (r *holderReceiver) Rotate(expected string, rotation wire.Rotation) (wire.RotateResult, error) {
-	subject, refusal := r.authorize(credentials.ActionManage)
+	subject, guard, refusal := r.legacyNamedAdmission(credentials.ActionManage, credentials.ActionSecretRotate, rotation.Name)
 	if refusal != "" {
 		zero(rotation.Secret)
 		return wire.RotateResult{Outcome: rotateRefusal(refusal)}, nil
 	}
-	return r.host.holder.Rotate(subject, expected, rotation), nil
+	return r.host.holder.RotateNamedAuthorized(subject, expected, rotation, guard), nil
 }
 
 func (r *holderReceiver) Revoke(expected, name string) (wire.RevokeResult, error) {
-	subject, refusal := r.authorize(credentials.ActionManage)
+	subject, guard, refusal := r.legacyNamedAdmission(credentials.ActionManage, credentials.ActionSecretRevoke, name)
 	if refusal != "" {
 		return wire.RevokeResult{Outcome: revokeRefusal(refusal)}, nil
 	}
-	return r.host.holder.Revoke(subject, expected, name), nil
+	return r.host.holder.RevokeNamedAuthorized(subject, expected, name, guard), nil
 }
 
 func (r *holderReceiver) List(cursor string, limit int64) (wire.MetadataPage, error) {
-	subject, refusal := r.authorize(credentials.ActionRead)
+	subject, guard, refusal := r.legacyAdmission(credentials.ActionRead, nil)
 	if refusal != "" {
 		return credentials.RefusedMetadataPage(pageRefusal(refusal)), nil
 	}
-	return r.host.holder.List(subject.Account, cursor, limit), nil
+	return r.host.holder.ListAuthorized(subject.Account, cursor, limit, guard), nil
 }
 
 func (r *holderReceiver) Audit(cursor string, maxEntries int64) (wire.AuditPage, error) {
-	subject, refusal := r.authorize(credentials.ActionRead)
+	subject, guard, refusal := r.legacyAdmission(credentials.ActionRead, nil)
 	if refusal != "" {
 		return wire.AuditPage{Outcome: pageRefusal(refusal), Entries: []wire.AuditEntry{}, Next: cursor}, nil
 	}
-	return r.host.holder.Audit(subject.Account, cursor, maxEntries), nil
+	return r.host.holder.AuditAuthorized(subject.Account, cursor, maxEntries, guard), nil
 }
 
 type applierReceiver struct{ receiver }
@@ -319,12 +327,14 @@ func (r *applierReceiver) Check(use wire.Use) (wire.CheckResult, error) {
 	if !r.designated(use) {
 		return wire.CheckResult{Outcome: wire.ApplyOutcomeForbidden}, nil
 	}
-	return r.host.holder.Check(r.ctx, use, r.host.decide), nil
+	decide, guard, evidence := r.legacyAuthorization(use)
+	return r.host.holder.CheckAuthorized(r.ctx, use, decide, guard, evidence), nil
 }
 
 func (r *applierReceiver) Apply(use wire.Use) (wire.ApplyResult, error) {
 	if !r.designated(use) {
 		return wire.ApplyResult{Outcome: wire.ApplyOutcomeForbidden}, nil
 	}
-	return r.host.holder.Apply(r.ctx, use, r.host.decide), nil
+	decide, guard, evidence := r.legacyAuthorization(use)
+	return r.host.holder.ApplyAuthorized(r.ctx, use, decide, guard, evidence), nil
 }

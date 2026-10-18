@@ -1,8 +1,9 @@
 namespace * abstraction.credentials.api
 
 // Secrets an account's programs register by name and reference afterwards.
-// No call returns secret bytes to an application; the applier profile hands
-// them to an explicitly designated consuming service for one request.
+// The original holder/applier profiles retain metadata/service-mediated use.
+// The separately selected reader profile discloses a saved app secret only to
+// its native-bound requester under its distinct value-read permission.
 encoding json {
  escape="minimal"
  indent="2"
@@ -40,10 +41,12 @@ const list<string> credential_kinds = ["bearer", "header"]
 // decision policy through rights action registration; applications extend the
 // rights catalogue there, never here. Closed by CRED-R1; the next name this list
 // would reserve is abstraction.credentials/holder.delegate.
-const list<string> resource_actions = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply"] (catalogue = "closed", closed_by = "CRED-R1")
+const list<string> resource_actions = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"] (catalogue = "closed", closed_by = "CRED-R1")
 // Job guarantee a submission naming a credential requires. A provider without
 // an applier refuses it at resolution as unmet.
-const list<string> execution_guarantees = ["abstraction.download/credentials@1"]
+// @2 explicitly selects the typed applier route for the whole submitted request.
+// Selecting both versions is invalid; unavailable @2 never falls back to @1.
+const list<string> execution_guarantees = ["abstraction.download/credentials@1", "abstraction.download/credentials@2"]
 // Standard configured platform stores reported in Limits.secure_store. Provider
 // extensions and the empty value in refusal-page zero limits are retained.
 enum SecureStore {
@@ -209,6 +212,9 @@ struct Use {
  4: required string target
  5: optional string challenge(omit="absent")
 }(unknown_fields="refuse",doc="subject is the submitting caller as bound at the consuming service's own boundary and asserted by that authorized enforcer; serialization conveys no proof. consumer is the calling service's wire contract name: a consumers seed or <owner>/<name>@<n>. target is the lowercase host the request will open. challenge carries kind-specific input, for example a registry authenticate challenge, and is refused as invalid for the seed kinds.")
+struct CredentialResource {
+ 1: required string name
+}(unknown_fields="refuse",doc="An account-owned credential name slot. name is 1..64 ASCII letters, digits, '_', '.' or '-'; the old exact rights resource is credential:<name>. Account/program bind separately at the receiving boundary. The canonical generated document is the target of named-secret@1 and named-use@2, whose collection is saved application credentials of kinds accepted by Store; runtime local-key@1 records are excluded. named-use@1 retains its original exact route. Name grants follow the current slot, including rotation and a recreated registration's current restrictions. Read discloses the current value to the bound requesting program under a distinct permission. Management operations convey only their explicit supported effects. Every target operation revalidates current membership, state and expiry after waits.")
 struct CheckResult {
  1: required ApplyOutcome outcome
  2: required string revision
@@ -222,3 +228,52 @@ service Applier {
  CheckResult Check(1:Use usage)(doc="Evaluate whether Apply would succeed for this use, for admission and adopter preflight. Same designation and policy as Apply; reads no secret; appends a checked or refused audit entry.")
  ApplyResult Apply(1:Use usage)(doc="Read the secret for one outgoing request. Only an explicitly designated enforcer program, bound by native Program proof, is accepted; same-account access alone is forbidden. The holder rechecks rights on every call and never caches a decision or a value across calls.")
 }(wire_name="abstraction.credentials/applier@1",doc="Enforcer-only application of a named credential to one request. The receiving host designates the consuming services by program, as rights DecideFor designates enforcers; nil designation refuses every call. Headers cross this boundary to a designated service only, never to an application client, and never to a remote host. A remote provider holds its own applier and registrations; delegation carries the name. On platforms without process and path proof every Apply is forbidden.")
+
+struct SecretValue {
+ 1: required string name
+ 2: required string revision
+ 3: required binary secret
+}(unknown_fields="refuse",doc="Successful reader@1 response only. name is the requested canonical slot and revision is the actual current record revision. secret is a fresh copy of 1..4096 bytes, within the configured store's limit. The receiving application owns this returned copy and clears it after use; no client/provider retains or logs it. No metadata, audit, history, error, Asks record or diagnostic contains the value or a derivative.")
+enum SecretReadOutcome {
+ 1: read
+ 2: unknown
+ 3: expired
+ 4: revoked
+ 5: lost
+ 6: invalid
+ 7: forbidden
+ 8: unavailable
+ 9: conflict
+ 10: unsupported_kind
+}(unknown="refuse",reader="act")
+struct SecretReadResult {
+ 1: required SecretReadOutcome outcome
+ 2: optional SecretValue value(omit="absent")
+}(unknown_fields="refuse",doc="value is present exactly for read. Every refusal has no name, revision, value or derived byte data. Native recipient and explicit Read authority are checked before any existence/state disclosure and again before returning bytes or a state-bearing result. forbidden covers absent authority and an unproven/foreign recipient. conflict means the selected policy snapshot became stale; no bytes are returned. Runtime-managed local-key@1 is outside this collection and reads unsupported_kind only after authorization. Consumer/website restrictions constrain service-mediated Use; raw Read explicitly exports the value to the requesting application.")
+service SecretReader {
+ SecretReadResult Read(1:string name)(doc="Read one current saved application secret for the native Program-bound same-account requester. No caller-supplied subject/recipient/consumer/target is accepted. Requires secret.read under named-secret@1. Missing permission may admit an exact structured permission request; the original call remains refused. No value is cached across calls, and no failed/uncertain call is automatically retried.")
+}(wire_name="abstraction.credentials/reader@1",doc="Separately selected requester-facing raw value disclosure. Old Apply, metadata and manage permissions confer no Read. Nil scoped policy configuration or unavailable native Program proof refuses access. Every call reloads the current slot and checks expiry/membership and current authority; every forbidden caller receives no record state. This interface changes no legacy profile's granted operation set.")
+
+enum MetadataReadOutcome {
+ 1: found
+ 2: unknown
+ 3: invalid
+ 4: forbidden
+ 5: unavailable
+ 6: conflict
+}(unknown="refuse",reader="act")
+struct MetadataReadResult {
+ 1: required MetadataReadOutcome outcome
+ 2: optional Metadata current(omit="absent")
+}(unknown_fields="refuse",doc="found carries only the authorized name's current metadata, including an expired/lost record or a tombstone inside retention. Other outcomes carry no current or revision. This lookup supports conditional-edit reconciliation without account List/Audit access. Runtime-managed records are outside the collection and read forbidden.")
+service ScopedHolder {
+ StoreResult Store(1:string expected_revision,2:Registration registration)(doc="Conditionally create one name under secret.create/named-secret@1. Reuses Store's bounds, persistence and expected-revision owner. Both unsupported input kind and an existing/tombstoned excluded runtime-managed slot return unsupported_kind without current metadata/revision, before ordinary conflict handling.")
+ RotateResult Rotate(1:string expected_revision,2:Rotation rotation)(doc="Conditionally rotate one saved app name under secret.rotate/named-secret@1. Kind/scope stay unchanged. Reloaded excluded membership reads forbidden without current/revision; no bytes are written. Stale record revisions retain ordinary conditional conflict semantics.")
+ RevokeResult Revoke(1:string expected_revision,2:string name)(doc="Conditionally revoke one saved app name under secret.revoke/named-secret@1. Reloaded excluded membership reads forbidden without revision; no bytes are destroyed. Current tombstone/expiry/revision rules retain their owner.")
+ MetadataReadResult Metadata(1:string name)(doc="Inspect one saved app name under secret.metadata.read/named-secret@1, after native recipient and permission checks. Enumerates no names, returns no values and admits no account List/Audit authority.")
+}(wire_name="abstraction.credentials/holder@2",doc="Name-scoped management of saved application credentials accepted by Store. Native subject is bound at the receiver. Each method has its distinct permission and final quiet rights/identity check after waits inside the holder edit. Runtime local-key@1 is excluded. Explicit overlapping legacy/typed blocks are enforced by the shared Rights compatibility owner; permits stay profile-specific. Name permits follow current/recreated slots. No permission-administration, enumeration or raw Read authority is implied.")
+
+service ScopedApplier {
+ CheckResult Check(1:Use usage)(doc="Check one use through the explicit named-use@2 selector route; no secret is read. Same designated enforcer, bound subject, current saved-app-secret membership, consumer/target and expiry checks as Apply.")
+ ApplyResult Apply(1:Use usage)(doc="Apply one saved app secret through the explicit named-use@2 route. Only a designated receiving enforcer may assert the submitting subject. Recheck every request, redirect and resumed range; headers leave only to that service. No fallback to the legacy named-use@1 route.")
+}(wire_name="abstraction.credentials/applier@2",doc="Explicit selector-aware service-mediated Use for the saved-app-secret collection. Old applier@1 requests retain their selected authority route; current explicit equivalent blocks apply through the shared Rights owner. Missing scoped policy configuration is unavailable. Runtime-managed keys read unsupported_kind. All support is profile-specific and disclosed; Apply conveys no raw requester Read or management authority.")

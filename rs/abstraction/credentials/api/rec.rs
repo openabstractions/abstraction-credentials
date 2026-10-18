@@ -66,6 +66,44 @@ fn esc(out: &mut Vec<u8>, s: &str) {
     out.push(b'"');
 }
 
+fn strmap(out: &mut Vec<u8>, m: &BTreeMap<String, String>, depth: i32) {
+    if m.is_empty() {
+        out.extend_from_slice(b"{}");
+        return;
+    }
+    out.extend_from_slice(b"{\n");
+    for (i, (k, v)) in m.iter().enumerate() {
+        pad(out, depth + 1);
+        esc(out, k);
+        out.extend_from_slice(b": ");
+        esc(out, v);
+        if i + 1 < m.len() {
+            out.push(b',');
+        }
+        out.push(b'\n');
+    }
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_list<T>(out: &mut Vec<u8>, v: &[T], depth: i32, enc: fn(&mut Vec<u8>, &T, i32)) {
+    if v.is_empty() {
+        out.extend_from_slice(b"[]");
+        return;
+    }
+    out.extend_from_slice(b"[\n");
+    for (i, x) in v.iter().enumerate() {
+        pad(out, depth + 1);
+        enc(out, x, depth + 1);
+        if i + 1 < v.len() {
+            out.push(b',');
+        }
+        out.push(b'\n');
+    }
+    pad(out, depth);
+    out.push(b']');
+}
+
 /// Names of the open vocabulary SecureStore. A reader keeps a name it has never heard
 /// of, so fields carry `String` and a match needs an arm for the rest.
 pub mod secure_store {
@@ -408,6 +446,136 @@ impl PartialEq<&str> for ApplyOutcome {
     }
 }
 
+/// The closed vocabulary SecretReadOutcome. A reader refuses a name it does not list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SecretReadOutcome {
+    Read,
+    Unknown,
+    Expired,
+    Revoked,
+    Lost,
+    Invalid,
+    Forbidden,
+    Unavailable,
+    Conflict,
+    UnsupportedKind,
+}
+
+impl SecretReadOutcome {
+    /// Every member, in declaration order.
+    pub const ALL: [Self; 10] = [Self::Read, Self::Unknown, Self::Expired, Self::Revoked, Self::Lost, Self::Invalid, Self::Forbidden, Self::Unavailable, Self::Conflict, Self::UnsupportedKind];
+
+    /// The member's name on the wire.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::Unknown => "unknown",
+            Self::Expired => "expired",
+            Self::Revoked => "revoked",
+            Self::Lost => "lost",
+            Self::Invalid => "invalid",
+            Self::Forbidden => "forbidden",
+            Self::Unavailable => "unavailable",
+            Self::Conflict => "conflict",
+            Self::UnsupportedKind => "unsupported_kind",
+        }
+    }
+
+    /// The member a wire name spells, or `None` for a name this vocabulary refuses.
+    pub fn from_wire(name: &str) -> Option<Self> {
+        match name {
+            "read" => Some(Self::Read),
+            "unknown" => Some(Self::Unknown),
+            "expired" => Some(Self::Expired),
+            "revoked" => Some(Self::Revoked),
+            "lost" => Some(Self::Lost),
+            "invalid" => Some(Self::Invalid),
+            "forbidden" => Some(Self::Forbidden),
+            "unavailable" => Some(Self::Unavailable),
+            "conflict" => Some(Self::Conflict),
+            "unsupported_kind" => Some(Self::UnsupportedKind),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for SecretReadOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<str> for SecretReadOutcome {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for SecretReadOutcome {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+/// The closed vocabulary MetadataReadOutcome. A reader refuses a name it does not list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum MetadataReadOutcome {
+    Found,
+    Unknown,
+    Invalid,
+    Forbidden,
+    Unavailable,
+    Conflict,
+}
+
+impl MetadataReadOutcome {
+    /// Every member, in declaration order.
+    pub const ALL: [Self; 6] = [Self::Found, Self::Unknown, Self::Invalid, Self::Forbidden, Self::Unavailable, Self::Conflict];
+
+    /// The member's name on the wire.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Found => "found",
+            Self::Unknown => "unknown",
+            Self::Invalid => "invalid",
+            Self::Forbidden => "forbidden",
+            Self::Unavailable => "unavailable",
+            Self::Conflict => "conflict",
+        }
+    }
+
+    /// The member a wire name spells, or `None` for a name this vocabulary refuses.
+    pub fn from_wire(name: &str) -> Option<Self> {
+        match name {
+            "found" => Some(Self::Found),
+            "unknown" => Some(Self::Unknown),
+            "invalid" => Some(Self::Invalid),
+            "forbidden" => Some(Self::Forbidden),
+            "unavailable" => Some(Self::Unavailable),
+            "conflict" => Some(Self::Conflict),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for MetadataReadOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<str> for MetadataReadOutcome {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for MetadataReadOutcome {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
 /// Names of the open vocabulary ServiceErrorCode. A reader keeps a name it has never heard
 /// of, so fields carry `String` and a match needs an arm for the rest.
 pub mod service_error_code {
@@ -423,9 +591,9 @@ pub mod service_error_code {
 
 pub const CREDENTIAL_KINDS: [&str; 2] = ["bearer", "header"];
 
-pub const RESOURCE_ACTIONS: [&str; 3] = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply"];
+pub const RESOURCE_ACTIONS: [&str; 8] = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"];
 
-pub const EXECUTION_GUARANTEES: [&str; 1] = ["abstraction.download/credentials@1"];
+pub const EXECUTION_GUARANTEES: [&str; 2] = ["abstraction.download/credentials@1", "abstraction.download/credentials@2"];
 
 pub const CONSUMERS: [&str; 3] = ["abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"];
 
@@ -611,6 +779,23 @@ pub struct Use {
     pub challenge: String,
 }
 
+/// An account-owned credential name slot. name is 1..64 ASCII letters, digits,
+/// '_', '.' or '-'; the old exact rights resource is credential:<name>.
+/// Account/program bind separately at the receiving boundary. The canonical
+/// generated document is the target of named-secret@1 and named-use@2, whose
+/// collection is saved application credentials of kinds accepted by Store;
+/// runtime local-key@1 records are excluded. named-use@1 retains its original
+/// exact route. Name grants follow the current slot, including rotation and a
+/// recreated registration's current restrictions. Read discloses the current
+/// value to the bound requesting program under a distinct permission.
+/// Management operations convey only their explicit supported effects. Every
+/// target operation revalidates current membership, state and expiry after
+/// waits.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CredentialResource {
+    pub name: String,
+}
+
 /// applied means Apply with the same Use would carry headers now. revision is
 /// present for evaluated records. No secret is read for a check.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -636,6 +821,45 @@ pub struct ApplyResult {
     pub outcome: ApplyOutcome,
     pub revision: String,
     pub headers: BTreeMap<String, String>,
+}
+
+/// Successful reader@1 response only. name is the requested canonical slot and
+/// revision is the actual current record revision. secret is a fresh copy of
+/// 1..4096 bytes, within the configured store's limit. The receiving
+/// application owns this returned copy and clears it after use; no
+/// client/provider retains or logs it. No metadata, audit, history, error, Asks
+/// record or diagnostic contains the value or a derivative.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SecretValue {
+    pub name: String,
+    pub revision: String,
+    pub secret: Vec<u8>,
+}
+
+/// value is present exactly for read. Every refusal has no name, revision,
+/// value or derived byte data. Native recipient and explicit Read authority are
+/// checked before any existence/state disclosure and again before returning
+/// bytes or a state-bearing result. forbidden covers absent authority and an
+/// unproven/foreign recipient. conflict means the selected policy snapshot
+/// became stale; no bytes are returned. Runtime-managed local-key@1 is outside
+/// this collection and reads unsupported_kind only after authorization.
+/// Consumer/website restrictions constrain service-mediated Use; raw Read
+/// explicitly exports the value to the requesting application.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SecretReadResult {
+    pub outcome: SecretReadOutcome,
+    pub value: Option<SecretValue>,
+}
+
+/// found carries only the authorized name's current metadata, including an
+/// expired/lost record or a tombstone inside retention. Other outcomes carry no
+/// current or revision. This lookup supports conditional-edit reconciliation
+/// without account List/Audit access. Runtime-managed records are outside the
+/// collection and read forbidden.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MetadataReadResult {
+    pub outcome: MetadataReadOutcome,
+    pub current: Option<Metadata>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -675,6 +899,44 @@ struct OAApplierCheckArguments {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct OAApplierApplyArguments {
+    usage: Use,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OASecretReaderReadArguments {
+    name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OAScopedHolderStoreArguments {
+    expected_revision: String,
+    registration: Registration,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OAScopedHolderRotateArguments {
+    expected_revision: String,
+    rotation: Rotation,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OAScopedHolderRevokeArguments {
+    expected_revision: String,
+    name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OAScopedHolderMetadataArguments {
+    name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OAScopedApplierCheckArguments {
+    usage: Use,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct OAScopedApplierApplyArguments {
     usage: Use,
 }
 
@@ -736,6 +998,41 @@ struct OAApplierApplyResult {
     value: ApplyResult,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OASecretReaderReadResult {
+    value: SecretReadResult,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OAScopedHolderStoreResult {
+    value: StoreResult,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OAScopedHolderRotateResult {
+    value: RotateResult,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OAScopedHolderRevokeResult {
+    value: RevokeResult,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OAScopedHolderMetadataResult {
+    value: MetadataReadResult,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OAScopedApplierCheckResult {
+    value: CheckResult,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct OAScopedApplierApplyResult {
+    value: ApplyResult,
+}
+
 fn enc_subject(out: &mut Vec<u8>, v: &Subject, depth: i32) {
     out.push(b'{');
     out.push(b'\n');
@@ -767,6 +1064,78 @@ fn enc_scope(out: &mut Vec<u8>, v: &Scope, depth: i32) {
     esc(out, "consumers");
     out.extend_from_slice(b": ");
     strs(out, &v.consumers, depth + 1);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_metadata(out: &mut Vec<u8>, v: &Metadata, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "name");
+    out.extend_from_slice(b": ");
+    esc(out, &v.name);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "kind");
+    out.extend_from_slice(b": ");
+    esc(out, &v.kind);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "state");
+    out.extend_from_slice(b": ");
+    esc(out, &v.state);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "scope");
+    out.extend_from_slice(b": ");
+    enc_scope(out, &v.scope, depth + 1);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "registered_by");
+    out.extend_from_slice(b": ");
+    enc_subject(out, &v.registered_by, depth + 1);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "registered");
+    out.extend_from_slice(b": ");
+    esc(out, &write_timestamp(&v.registered));
+    if !v.expires.is_empty() {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "expires");
+        out.extend_from_slice(b": ");
+        esc(out, &write_timestamp(&v.expires));
+    }
+    if !v.header.is_empty() {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "header");
+        out.extend_from_slice(b": ");
+        esc(out, &v.header);
+    }
+    if !v.last_applied.is_empty() {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "last_applied");
+        out.extend_from_slice(b": ");
+        esc(out, &write_timestamp(&v.last_applied));
+    }
     out.push(b'\n');
     pad(out, depth);
     out.push(b'}');
@@ -844,6 +1213,258 @@ fn enc_rotation(out: &mut Vec<u8>, v: &Rotation, depth: i32) {
     out.push(b'}');
 }
 
+fn enc_store_result(out: &mut Vec<u8>, v: &StoreResult, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    if let Some(value) = &v.current {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "current");
+        out.extend_from_slice(b": ");
+        enc_metadata(out, value, depth + 1);
+    }
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_rotate_result(out: &mut Vec<u8>, v: &RotateResult, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    if let Some(value) = &v.current {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "current");
+        out.extend_from_slice(b": ");
+        enc_metadata(out, value, depth + 1);
+    }
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_revoke_result(out: &mut Vec<u8>, v: &RevokeResult, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_limits(out: &mut Vec<u8>, v: &Limits, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "max_credentials");
+    out.extend_from_slice(b": ");
+    num(out, v.max_credentials);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "max_secret_bytes");
+    out.extend_from_slice(b": ");
+    num(out, v.max_secret_bytes);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "tombstone_retention_ms");
+    out.extend_from_slice(b": ");
+    num(out, v.tombstone_retention_ms);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "audit_retention_ms");
+    out.extend_from_slice(b": ");
+    num(out, v.audit_retention_ms);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "audit_capacity");
+    out.extend_from_slice(b": ");
+    num(out, v.audit_capacity);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "secure_store");
+    out.extend_from_slice(b": ");
+    esc(out, &v.secure_store);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "supported_kinds");
+    out.extend_from_slice(b": ");
+    strs(out, &v.supported_kinds, depth + 1);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_metadata_page(out: &mut Vec<u8>, v: &MetadataPage, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "limits");
+    out.extend_from_slice(b": ");
+    enc_limits(out, &v.limits, depth + 1);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "records");
+    out.extend_from_slice(b": ");
+    enc_list(out, &v.records, depth + 1, enc_metadata);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "next");
+    out.extend_from_slice(b": ");
+    esc(out, &v.next);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "complete");
+    out.extend_from_slice(b": ");
+    out.extend_from_slice(if v.complete { b"true" } else { b"false" });
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_audit_entry(out: &mut Vec<u8>, v: &AuditEntry, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "sequence");
+    out.extend_from_slice(b": ");
+    num(out, v.sequence);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "time");
+    out.extend_from_slice(b": ");
+    esc(out, &write_timestamp(&v.time));
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "event");
+    out.extend_from_slice(b": ");
+    esc(out, &v.event);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "name");
+    out.extend_from_slice(b": ");
+    esc(out, &v.name);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    if let Some(value) = &v.subject {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "subject");
+        out.extend_from_slice(b": ");
+        enc_subject(out, value, depth + 1);
+    }
+    if !v.consumer.is_empty() {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "consumer");
+        out.extend_from_slice(b": ");
+        esc(out, &v.consumer);
+    }
+    if !v.target.is_empty() {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "target");
+        out.extend_from_slice(b": ");
+        esc(out, &v.target);
+    }
+    if !v.outcome.is_empty() {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "outcome");
+        out.extend_from_slice(b": ");
+        esc(out, &v.outcome);
+    }
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_audit_page(out: &mut Vec<u8>, v: &AuditPage, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "entries");
+    out.extend_from_slice(b": ");
+    enc_list(out, &v.entries, depth + 1, enc_audit_entry);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "next");
+    out.extend_from_slice(b": ");
+    esc(out, &v.next);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "at_end");
+    out.extend_from_slice(b": ");
+    out.extend_from_slice(if v.at_end { b"true" } else { b"false" });
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
 fn enc_use(out: &mut Vec<u8>, v: &Use, depth: i32) {
     out.push(b'{');
     out.push(b'\n');
@@ -876,6 +1497,126 @@ fn enc_use(out: &mut Vec<u8>, v: &Use, depth: i32) {
         esc(out, "challenge");
         out.extend_from_slice(b": ");
         esc(out, &v.challenge);
+    }
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_credential_resource(out: &mut Vec<u8>, v: &CredentialResource, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "name");
+    out.extend_from_slice(b": ");
+    esc(out, &v.name);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_check_result(out: &mut Vec<u8>, v: &CheckResult, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_apply_result(out: &mut Vec<u8>, v: &ApplyResult, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    if !v.headers.is_empty() {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "headers");
+        out.extend_from_slice(b": ");
+        strmap(out, &v.headers, depth + 1);
+    }
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_secret_value(out: &mut Vec<u8>, v: &SecretValue, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "name");
+    out.extend_from_slice(b": ");
+    esc(out, &v.name);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.revision);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "secret");
+    out.extend_from_slice(b": ");
+    esc(out, &encode_binary(&v.secret));
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_secret_read_result(out: &mut Vec<u8>, v: &SecretReadResult, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    if let Some(value) = &v.value {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "value");
+        out.extend_from_slice(b": ");
+        enc_secret_value(out, value, depth + 1);
+    }
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_metadata_read_result(out: &mut Vec<u8>, v: &MetadataReadResult, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out.extend_from_slice(b": ");
+    esc(out, v.outcome.as_str());
+    if let Some(value) = &v.current {
+        out.push(b',');
+        out.push(b'\n');
+        pad(out, depth + 1);
+        esc(out, "current");
+        out.extend_from_slice(b": ");
+        enc_metadata(out, value, depth + 1);
     }
     out.push(b'\n');
     pad(out, depth);
@@ -996,6 +1737,108 @@ fn enc_oa_applier_apply_arguments(out: &mut Vec<u8>, v: &OAApplierApplyArguments
     out.push(b'}');
 }
 
+fn enc_oa_secret_reader_read_arguments(out: &mut Vec<u8>, v: &OASecretReaderReadArguments, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "name");
+    out.extend_from_slice(b": ");
+    esc(out, &v.name);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_oa_scoped_holder_store_arguments(out: &mut Vec<u8>, v: &OAScopedHolderStoreArguments, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "expected_revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.expected_revision);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "registration");
+    out.extend_from_slice(b": ");
+    enc_registration(out, &v.registration, depth + 1);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_oa_scoped_holder_rotate_arguments(out: &mut Vec<u8>, v: &OAScopedHolderRotateArguments, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "expected_revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.expected_revision);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "rotation");
+    out.extend_from_slice(b": ");
+    enc_rotation(out, &v.rotation, depth + 1);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_oa_scoped_holder_revoke_arguments(out: &mut Vec<u8>, v: &OAScopedHolderRevokeArguments, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "expected_revision");
+    out.extend_from_slice(b": ");
+    esc(out, &v.expected_revision);
+    out.push(b',');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "name");
+    out.extend_from_slice(b": ");
+    esc(out, &v.name);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_oa_scoped_holder_metadata_arguments(out: &mut Vec<u8>, v: &OAScopedHolderMetadataArguments, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "name");
+    out.extend_from_slice(b": ");
+    esc(out, &v.name);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_oa_scoped_applier_check_arguments(out: &mut Vec<u8>, v: &OAScopedApplierCheckArguments, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "usage");
+    out.extend_from_slice(b": ");
+    enc_use(out, &v.usage, depth + 1);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
+fn enc_oa_scoped_applier_apply_arguments(out: &mut Vec<u8>, v: &OAScopedApplierApplyArguments, depth: i32) {
+    out.push(b'{');
+    out.push(b'\n');
+    pad(out, depth + 1);
+    esc(out, "usage");
+    out.extend_from_slice(b": ");
+    enc_use(out, &v.usage, depth + 1);
+    out.push(b'\n');
+    pad(out, depth);
+    out.push(b'}');
+}
+
 fn enc_oa_service_frame(out: &mut Vec<u8>, v: &OAServiceFrame, depth: i32) {
     out.push(b'{');
     out.push(b'\n');
@@ -1071,6 +1914,7 @@ struct Reader<'a> {
     buf: &'a [u8],
     pos: usize,
     depth: i32,
+    limit: i32,
 }
 
 impl<'a> Reader<'a> {
@@ -1090,7 +1934,7 @@ impl<'a> Reader<'a> {
 
     fn enter(&mut self) -> Result<(), Refusal> {
         self.depth += 1;
-        if self.depth > DEPTH_LIMIT {
+        if self.depth > self.limit {
             return self.refuse("depth_exceeded");
         }
         Ok(())
@@ -2756,6 +3600,60 @@ fn decode_use(r: &mut Reader) -> Result<Use, Refusal> {
     })
 }
 
+fn decode_credential_resource(r: &mut Reader) -> Result<CredentialResource, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_name: String = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "name" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_name = r.string()?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    Ok(CredentialResource {
+        name: field_name,
+    })
+}
+
 fn decode_check_result(r: &mut Reader) -> Result<CheckResult, Refusal> {
     if r.at() != b'{' {
         return r.refuse("wrong_type");
@@ -2894,6 +3792,210 @@ fn decode_apply_result(r: &mut Reader) -> Result<ApplyResult, Refusal> {
         outcome: field_outcome,
         revision: field_revision,
         headers: field_headers,
+    })
+}
+
+fn decode_secret_value(r: &mut Reader) -> Result<SecretValue, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_name: String = Default::default();
+    let mut field_revision: String = Default::default();
+    let mut field_secret: Vec<u8> = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "name" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_name = r.string()?;
+                }
+                "revision" => {
+                    if seen & 2 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 2;
+                    field_revision = r.string()?;
+                }
+                "secret" => {
+                    if seen & 4 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 4;
+                    field_secret = read_binary(r)?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 7 != 7 {
+        return r.refuse("missing_field");
+    }
+    Ok(SecretValue {
+        name: field_name,
+        revision: field_revision,
+        secret: field_secret,
+    })
+}
+
+fn decode_secret_read_result(r: &mut Reader) -> Result<SecretReadResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_outcome: Option<String> = None;
+    let mut field_value: Option<SecretValue> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "outcome" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_outcome = Some(r.string()?);
+                }
+                "value" => {
+                    if seen & 2 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 2;
+                    field_value = Some(decode_secret_value(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_outcome) = field_outcome.as_deref().and_then(SecretReadOutcome::from_wire) else {
+        return r.refuse("bad_enum");
+    };
+    Ok(SecretReadResult {
+        outcome: field_outcome,
+        value: field_value,
+    })
+}
+
+fn decode_metadata_read_result(r: &mut Reader) -> Result<MetadataReadResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_outcome: Option<String> = None;
+    let mut field_current: Option<Metadata> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "outcome" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_outcome = Some(r.string()?);
+                }
+                "current" => {
+                    if seen & 2 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 2;
+                    field_current = Some(decode_metadata(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_outcome) = field_outcome.as_deref().and_then(MetadataReadOutcome::from_wire) else {
+        return r.refuse("bad_enum");
+    };
+    Ok(MetadataReadResult {
+        outcome: field_outcome,
+        current: field_current,
     })
 }
 
@@ -3316,6 +4418,411 @@ fn decode_oa_applier_apply_arguments(r: &mut Reader) -> Result<OAApplierApplyArg
         return r.refuse("missing_field");
     }
     Ok(OAApplierApplyArguments {
+        usage: field_usage,
+    })
+}
+
+fn decode_oa_secret_reader_read_arguments(r: &mut Reader) -> Result<OASecretReaderReadArguments, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_name: String = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "name" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_name = r.string()?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    Ok(OASecretReaderReadArguments {
+        name: field_name,
+    })
+}
+
+fn decode_oa_scoped_holder_store_arguments(r: &mut Reader) -> Result<OAScopedHolderStoreArguments, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_expected_revision: String = Default::default();
+    let mut field_registration: Registration = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "expected_revision" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_expected_revision = r.string()?;
+                }
+                "registration" => {
+                    if seen & 2 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 2;
+                    field_registration = decode_registration(r)?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 3 != 3 {
+        return r.refuse("missing_field");
+    }
+    Ok(OAScopedHolderStoreArguments {
+        expected_revision: field_expected_revision,
+        registration: field_registration,
+    })
+}
+
+fn decode_oa_scoped_holder_rotate_arguments(r: &mut Reader) -> Result<OAScopedHolderRotateArguments, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_expected_revision: String = Default::default();
+    let mut field_rotation: Rotation = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "expected_revision" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_expected_revision = r.string()?;
+                }
+                "rotation" => {
+                    if seen & 2 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 2;
+                    field_rotation = decode_rotation(r)?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 3 != 3 {
+        return r.refuse("missing_field");
+    }
+    Ok(OAScopedHolderRotateArguments {
+        expected_revision: field_expected_revision,
+        rotation: field_rotation,
+    })
+}
+
+fn decode_oa_scoped_holder_revoke_arguments(r: &mut Reader) -> Result<OAScopedHolderRevokeArguments, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_expected_revision: String = Default::default();
+    let mut field_name: String = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "expected_revision" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_expected_revision = r.string()?;
+                }
+                "name" => {
+                    if seen & 2 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 2;
+                    field_name = r.string()?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 3 != 3 {
+        return r.refuse("missing_field");
+    }
+    Ok(OAScopedHolderRevokeArguments {
+        expected_revision: field_expected_revision,
+        name: field_name,
+    })
+}
+
+fn decode_oa_scoped_holder_metadata_arguments(r: &mut Reader) -> Result<OAScopedHolderMetadataArguments, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_name: String = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "name" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_name = r.string()?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    Ok(OAScopedHolderMetadataArguments {
+        name: field_name,
+    })
+}
+
+fn decode_oa_scoped_applier_check_arguments(r: &mut Reader) -> Result<OAScopedApplierCheckArguments, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_usage: Use = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "usage" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_usage = decode_use(r)?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    Ok(OAScopedApplierCheckArguments {
+        usage: field_usage,
+    })
+}
+
+fn decode_oa_scoped_applier_apply_arguments(r: &mut Reader) -> Result<OAScopedApplierApplyArguments, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_usage: Use = Default::default();
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "usage" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_usage = decode_use(r)?;
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    Ok(OAScopedApplierApplyArguments {
         usage: field_usage,
     })
 }
@@ -3953,8 +5460,407 @@ fn decode_oa_applier_apply_result(r: &mut Reader) -> Result<OAApplierApplyResult
     })
 }
 
+fn decode_oa_secret_reader_read_result(r: &mut Reader) -> Result<OASecretReaderReadResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_value: Option<SecretReadResult> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "value" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_value = Some(decode_secret_read_result(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_value) = field_value else {
+        return r.refuse("missing_field");
+    };
+    Ok(OASecretReaderReadResult {
+        value: field_value,
+    })
+}
+
+fn decode_oa_scoped_holder_store_result(r: &mut Reader) -> Result<OAScopedHolderStoreResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_value: Option<StoreResult> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "value" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_value = Some(decode_store_result(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_value) = field_value else {
+        return r.refuse("missing_field");
+    };
+    Ok(OAScopedHolderStoreResult {
+        value: field_value,
+    })
+}
+
+fn decode_oa_scoped_holder_rotate_result(r: &mut Reader) -> Result<OAScopedHolderRotateResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_value: Option<RotateResult> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "value" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_value = Some(decode_rotate_result(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_value) = field_value else {
+        return r.refuse("missing_field");
+    };
+    Ok(OAScopedHolderRotateResult {
+        value: field_value,
+    })
+}
+
+fn decode_oa_scoped_holder_revoke_result(r: &mut Reader) -> Result<OAScopedHolderRevokeResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_value: Option<RevokeResult> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "value" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_value = Some(decode_revoke_result(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_value) = field_value else {
+        return r.refuse("missing_field");
+    };
+    Ok(OAScopedHolderRevokeResult {
+        value: field_value,
+    })
+}
+
+fn decode_oa_scoped_holder_metadata_result(r: &mut Reader) -> Result<OAScopedHolderMetadataResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_value: Option<MetadataReadResult> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "value" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_value = Some(decode_metadata_read_result(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_value) = field_value else {
+        return r.refuse("missing_field");
+    };
+    Ok(OAScopedHolderMetadataResult {
+        value: field_value,
+    })
+}
+
+fn decode_oa_scoped_applier_check_result(r: &mut Reader) -> Result<OAScopedApplierCheckResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_value: Option<CheckResult> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "value" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_value = Some(decode_check_result(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_value) = field_value else {
+        return r.refuse("missing_field");
+    };
+    Ok(OAScopedApplierCheckResult {
+        value: field_value,
+    })
+}
+
+fn decode_oa_scoped_applier_apply_result(r: &mut Reader) -> Result<OAScopedApplierApplyResult, Refusal> {
+    if r.at() != b'{' {
+        return r.refuse("wrong_type");
+    }
+    r.enter()?;
+    r.pos += 1;
+    let mut field_value: Option<ApplyResult> = None;
+    let mut seen: u32 = 0;
+    r.skip_ws();
+    if r.at() != b'}' {
+        loop {
+            r.skip_ws();
+            if r.at() != b'"' {
+                return r.refuse("malformed");
+            }
+            let key = r.string()?;
+            r.skip_ws();
+            if r.at() != b':' {
+                return r.refuse("malformed");
+            }
+            r.pos += 1;
+            r.skip_ws();
+            match key.as_str() {
+                "value" => {
+                    if seen & 1 != 0 {
+                        return r.refuse("duplicate_field");
+                    }
+                    seen |= 1;
+                    field_value = Some(decode_apply_result(r)?);
+                }
+                _ => {
+                    return r.refuse("unknown_field");
+                }
+            }
+            r.skip_ws();
+            if r.at() != b',' {
+                break;
+            }
+            r.pos += 1;
+        }
+    }
+    if r.at() != b'}' {
+        return r.refuse("malformed");
+    }
+    r.pos += 1;
+    r.depth -= 1;
+    if seen & 1 != 1 {
+        return r.refuse("missing_field");
+    }
+    let Some(field_value) = field_value else {
+        return r.refuse("missing_field");
+    };
+    Ok(OAScopedApplierApplyResult {
+        value: field_value,
+    })
+}
+
 pub fn decode(data: &[u8]) -> Result<Registration, Refusal> {
-    let mut r = Reader { buf: data, pos: 0, depth: 0 };
+    let mut r = Reader { buf: data, pos: 0, depth: 0, limit: DEPTH_LIMIT };
     r.skip_ws();
     let v = decode_registration(&mut r)?;
     r.skip_ws();
@@ -4018,6 +5924,38 @@ fn service_check_oa_applier_apply_arguments(v: &OAApplierApplyArguments) -> Resu
     Ok(())
 }
 
+fn service_check_oa_secret_reader_read_arguments(_v: &OASecretReaderReadArguments) -> Result<(), Refusal> {
+    Ok(())
+}
+
+fn service_check_oa_scoped_holder_store_arguments(v: &OAScopedHolderStoreArguments) -> Result<(), Refusal> {
+    service_check_registration(&v.registration)?;
+    Ok(())
+}
+
+fn service_check_oa_scoped_holder_rotate_arguments(v: &OAScopedHolderRotateArguments) -> Result<(), Refusal> {
+    service_check_rotation(&v.rotation)?;
+    Ok(())
+}
+
+fn service_check_oa_scoped_holder_revoke_arguments(_v: &OAScopedHolderRevokeArguments) -> Result<(), Refusal> {
+    Ok(())
+}
+
+fn service_check_oa_scoped_holder_metadata_arguments(_v: &OAScopedHolderMetadataArguments) -> Result<(), Refusal> {
+    Ok(())
+}
+
+fn service_check_oa_scoped_applier_check_arguments(v: &OAScopedApplierCheckArguments) -> Result<(), Refusal> {
+    service_check_use(&v.usage)?;
+    Ok(())
+}
+
+fn service_check_oa_scoped_applier_apply_arguments(v: &OAScopedApplierApplyArguments) -> Result<(), Refusal> {
+    service_check_use(&v.usage)?;
+    Ok(())
+}
+
 fn service_check_oa_service_frame(_v: &OAServiceFrame) -> Result<(), Refusal> {
     Ok(())
 }
@@ -4041,7 +5979,7 @@ pub enum CallError<E> {
 }
 
 fn service_decode<T>(data: &[u8], decode: fn(&mut Reader) -> Result<T, Refusal>) -> Result<T, Refusal> {
-    let mut r = Reader { buf: data, pos: 0, depth: 0 };
+    let mut r = Reader { buf: data, pos: 0, depth: 0, limit: DEPTH_LIMIT };
     r.skip_ws();
     let value = decode(&mut r)?;
     r.skip_ws();
@@ -4314,6 +6252,1377 @@ impl<T: FrameTransport> Applier for ApplierClient<T> {
     }
 }
 
+/// Separately selected requester-facing raw value disclosure. Old Apply,
+/// metadata and manage permissions confer no Read. Nil scoped policy
+/// configuration or unavailable native Program proof refuses access. Every call
+/// reloads the current slot and checks expiry/membership and current authority;
+/// every forbidden caller receives no record state. This interface changes no
+/// legacy profile's granted operation set.
+pub trait SecretReader {
+    type Error;
+    /// Read one current saved application secret for the native Program-bound
+    /// same-account requester. No caller-supplied
+    /// subject/recipient/consumer/target is accepted. Requires secret.read
+    /// under named-secret@1. Missing permission may admit an exact structured
+    /// permission request; the original call remains refused. No value is
+    /// cached across calls, and no failed/uncertain call is automatically
+    /// retried.
+    fn read(&self, name: String) -> Result<SecretReadResult, Self::Error>;
+}
+
+pub struct SecretReaderClient<T> {
+    transport: T,
+}
+
+impl<T> SecretReaderClient<T> {
+    pub fn new(transport: T) -> Self {
+        Self { transport }
+    }
+
+    pub fn transport(&self) -> &T {
+        &self.transport
+    }
+}
+
+impl<T: FrameTransport> SecretReader for SecretReaderClient<T> {
+    type Error = CallError<T::Error>;
+    fn read(&self, name: String) -> Result<SecretReadResult, Self::Error> {
+        let args = OASecretReaderReadArguments { name };
+        let arguments = service_encode(&args, service_check_oa_secret_reader_read_arguments, enc_oa_secret_reader_read_arguments, decode_oa_secret_reader_read_arguments).map_err(CallError::Refusal)?;
+        let request = OAServiceFrame { version: 1, service: "abstraction.credentials/reader@1".into(), method: "Read".into(), arguments };
+        let frame = service_encode(&request, service_check_oa_service_frame, enc_oa_service_frame, decode_oa_service_frame).map_err(CallError::Refusal)?;
+        let reply = self.transport.exchange_frame(&frame).map_err(CallError::Transport)?;
+        let reply = service_decode(&reply, decode_oa_service_reply).map_err(CallError::Refusal)?;
+        if reply.version != 1 {
+            return Err(CallError::Dispatch("unknown_version"));
+        }
+        if reply.service != "abstraction.credentials/reader@1" || reply.method != "Read" {
+            return Err(CallError::Dispatch("mismatched_response"));
+        }
+        if !reply.ok {
+            let error = service_decode(&reply.payload, decode_oa_service_error).map_err(CallError::Refusal)?;
+            if error.code.is_empty() {
+                return Err(CallError::Dispatch("invalid_error"));
+            }
+            return Err(CallError::Service(ServiceError { code: error.code, message: error.message }));
+        }
+        let result = service_decode(&reply.payload, decode_oa_secret_reader_read_result).map_err(CallError::Refusal)?;
+        Ok(result.value)
+    }
+}
+
+/// Name-scoped management of saved application credentials accepted by Store.
+/// Native subject is bound at the receiver. Each method has its distinct
+/// permission and final quiet rights/identity check after waits inside the
+/// holder edit. Runtime local-key@1 is excluded. Explicit overlapping
+/// legacy/typed blocks are enforced by the shared Rights compatibility owner;
+/// permits stay profile-specific. Name permits follow current/recreated slots.
+/// No permission-administration, enumeration or raw Read authority is implied.
+pub trait ScopedHolder {
+    type Error;
+    /// Conditionally create one name under secret.create/named-secret@1. Reuses
+    /// Store's bounds, persistence and expected-revision owner. Both
+    /// unsupported input kind and an existing/tombstoned excluded
+    /// runtime-managed slot return unsupported_kind without current
+    /// metadata/revision, before ordinary conflict handling.
+    fn store(&self, expected_revision: String, registration: Registration) -> Result<StoreResult, Self::Error>;
+    /// Conditionally rotate one saved app name under
+    /// secret.rotate/named-secret@1. Kind/scope stay unchanged. Reloaded
+    /// excluded membership reads forbidden without current/revision; no bytes
+    /// are written. Stale record revisions retain ordinary conditional conflict
+    /// semantics.
+    fn rotate(&self, expected_revision: String, rotation: Rotation) -> Result<RotateResult, Self::Error>;
+    /// Conditionally revoke one saved app name under
+    /// secret.revoke/named-secret@1. Reloaded excluded membership reads
+    /// forbidden without revision; no bytes are destroyed. Current
+    /// tombstone/expiry/revision rules retain their owner.
+    fn revoke(&self, expected_revision: String, name: String) -> Result<RevokeResult, Self::Error>;
+    /// Inspect one saved app name under secret.metadata.read/named-secret@1,
+    /// after native recipient and permission checks. Enumerates no names,
+    /// returns no values and admits no account List/Audit authority.
+    fn metadata(&self, name: String) -> Result<MetadataReadResult, Self::Error>;
+}
+
+pub struct ScopedHolderClient<T> {
+    transport: T,
+}
+
+impl<T> ScopedHolderClient<T> {
+    pub fn new(transport: T) -> Self {
+        Self { transport }
+    }
+
+    pub fn transport(&self) -> &T {
+        &self.transport
+    }
+}
+
+impl<T: FrameTransport> ScopedHolder for ScopedHolderClient<T> {
+    type Error = CallError<T::Error>;
+    fn store(&self, expected_revision: String, registration: Registration) -> Result<StoreResult, Self::Error> {
+        let args = OAScopedHolderStoreArguments { expected_revision, registration };
+        let arguments = service_encode(&args, service_check_oa_scoped_holder_store_arguments, enc_oa_scoped_holder_store_arguments, decode_oa_scoped_holder_store_arguments).map_err(CallError::Refusal)?;
+        let request = OAServiceFrame { version: 1, service: "abstraction.credentials/holder@2".into(), method: "Store".into(), arguments };
+        let frame = service_encode(&request, service_check_oa_service_frame, enc_oa_service_frame, decode_oa_service_frame).map_err(CallError::Refusal)?;
+        let reply = self.transport.exchange_frame(&frame).map_err(CallError::Transport)?;
+        let reply = service_decode(&reply, decode_oa_service_reply).map_err(CallError::Refusal)?;
+        if reply.version != 1 {
+            return Err(CallError::Dispatch("unknown_version"));
+        }
+        if reply.service != "abstraction.credentials/holder@2" || reply.method != "Store" {
+            return Err(CallError::Dispatch("mismatched_response"));
+        }
+        if !reply.ok {
+            let error = service_decode(&reply.payload, decode_oa_service_error).map_err(CallError::Refusal)?;
+            if error.code.is_empty() {
+                return Err(CallError::Dispatch("invalid_error"));
+            }
+            return Err(CallError::Service(ServiceError { code: error.code, message: error.message }));
+        }
+        let result = service_decode(&reply.payload, decode_oa_scoped_holder_store_result).map_err(CallError::Refusal)?;
+        Ok(result.value)
+    }
+
+    fn rotate(&self, expected_revision: String, rotation: Rotation) -> Result<RotateResult, Self::Error> {
+        let args = OAScopedHolderRotateArguments { expected_revision, rotation };
+        let arguments = service_encode(&args, service_check_oa_scoped_holder_rotate_arguments, enc_oa_scoped_holder_rotate_arguments, decode_oa_scoped_holder_rotate_arguments).map_err(CallError::Refusal)?;
+        let request = OAServiceFrame { version: 1, service: "abstraction.credentials/holder@2".into(), method: "Rotate".into(), arguments };
+        let frame = service_encode(&request, service_check_oa_service_frame, enc_oa_service_frame, decode_oa_service_frame).map_err(CallError::Refusal)?;
+        let reply = self.transport.exchange_frame(&frame).map_err(CallError::Transport)?;
+        let reply = service_decode(&reply, decode_oa_service_reply).map_err(CallError::Refusal)?;
+        if reply.version != 1 {
+            return Err(CallError::Dispatch("unknown_version"));
+        }
+        if reply.service != "abstraction.credentials/holder@2" || reply.method != "Rotate" {
+            return Err(CallError::Dispatch("mismatched_response"));
+        }
+        if !reply.ok {
+            let error = service_decode(&reply.payload, decode_oa_service_error).map_err(CallError::Refusal)?;
+            if error.code.is_empty() {
+                return Err(CallError::Dispatch("invalid_error"));
+            }
+            return Err(CallError::Service(ServiceError { code: error.code, message: error.message }));
+        }
+        let result = service_decode(&reply.payload, decode_oa_scoped_holder_rotate_result).map_err(CallError::Refusal)?;
+        Ok(result.value)
+    }
+
+    fn revoke(&self, expected_revision: String, name: String) -> Result<RevokeResult, Self::Error> {
+        let args = OAScopedHolderRevokeArguments { expected_revision, name };
+        let arguments = service_encode(&args, service_check_oa_scoped_holder_revoke_arguments, enc_oa_scoped_holder_revoke_arguments, decode_oa_scoped_holder_revoke_arguments).map_err(CallError::Refusal)?;
+        let request = OAServiceFrame { version: 1, service: "abstraction.credentials/holder@2".into(), method: "Revoke".into(), arguments };
+        let frame = service_encode(&request, service_check_oa_service_frame, enc_oa_service_frame, decode_oa_service_frame).map_err(CallError::Refusal)?;
+        let reply = self.transport.exchange_frame(&frame).map_err(CallError::Transport)?;
+        let reply = service_decode(&reply, decode_oa_service_reply).map_err(CallError::Refusal)?;
+        if reply.version != 1 {
+            return Err(CallError::Dispatch("unknown_version"));
+        }
+        if reply.service != "abstraction.credentials/holder@2" || reply.method != "Revoke" {
+            return Err(CallError::Dispatch("mismatched_response"));
+        }
+        if !reply.ok {
+            let error = service_decode(&reply.payload, decode_oa_service_error).map_err(CallError::Refusal)?;
+            if error.code.is_empty() {
+                return Err(CallError::Dispatch("invalid_error"));
+            }
+            return Err(CallError::Service(ServiceError { code: error.code, message: error.message }));
+        }
+        let result = service_decode(&reply.payload, decode_oa_scoped_holder_revoke_result).map_err(CallError::Refusal)?;
+        Ok(result.value)
+    }
+
+    fn metadata(&self, name: String) -> Result<MetadataReadResult, Self::Error> {
+        let args = OAScopedHolderMetadataArguments { name };
+        let arguments = service_encode(&args, service_check_oa_scoped_holder_metadata_arguments, enc_oa_scoped_holder_metadata_arguments, decode_oa_scoped_holder_metadata_arguments).map_err(CallError::Refusal)?;
+        let request = OAServiceFrame { version: 1, service: "abstraction.credentials/holder@2".into(), method: "Metadata".into(), arguments };
+        let frame = service_encode(&request, service_check_oa_service_frame, enc_oa_service_frame, decode_oa_service_frame).map_err(CallError::Refusal)?;
+        let reply = self.transport.exchange_frame(&frame).map_err(CallError::Transport)?;
+        let reply = service_decode(&reply, decode_oa_service_reply).map_err(CallError::Refusal)?;
+        if reply.version != 1 {
+            return Err(CallError::Dispatch("unknown_version"));
+        }
+        if reply.service != "abstraction.credentials/holder@2" || reply.method != "Metadata" {
+            return Err(CallError::Dispatch("mismatched_response"));
+        }
+        if !reply.ok {
+            let error = service_decode(&reply.payload, decode_oa_service_error).map_err(CallError::Refusal)?;
+            if error.code.is_empty() {
+                return Err(CallError::Dispatch("invalid_error"));
+            }
+            return Err(CallError::Service(ServiceError { code: error.code, message: error.message }));
+        }
+        let result = service_decode(&reply.payload, decode_oa_scoped_holder_metadata_result).map_err(CallError::Refusal)?;
+        Ok(result.value)
+    }
+}
+
+/// Explicit selector-aware service-mediated Use for the saved-app-secret
+/// collection. Old applier@1 requests retain their selected authority route;
+/// current explicit equivalent blocks apply through the shared Rights owner.
+/// Missing scoped policy configuration is unavailable. Runtime-managed keys
+/// read unsupported_kind. All support is profile-specific and disclosed; Apply
+/// conveys no raw requester Read or management authority.
+pub trait ScopedApplier {
+    type Error;
+    /// Check one use through the explicit named-use@2 selector route; no secret
+    /// is read. Same designated enforcer, bound subject, current
+    /// saved-app-secret membership, consumer/target and expiry checks as Apply.
+    fn check(&self, usage: Use) -> Result<CheckResult, Self::Error>;
+    /// Apply one saved app secret through the explicit named-use@2 route. Only
+    /// a designated receiving enforcer may assert the submitting subject.
+    /// Recheck every request, redirect and resumed range; headers leave only to
+    /// that service. No fallback to the legacy named-use@1 route.
+    fn apply(&self, usage: Use) -> Result<ApplyResult, Self::Error>;
+}
+
+pub struct ScopedApplierClient<T> {
+    transport: T,
+}
+
+impl<T> ScopedApplierClient<T> {
+    pub fn new(transport: T) -> Self {
+        Self { transport }
+    }
+
+    pub fn transport(&self) -> &T {
+        &self.transport
+    }
+}
+
+impl<T: FrameTransport> ScopedApplier for ScopedApplierClient<T> {
+    type Error = CallError<T::Error>;
+    fn check(&self, usage: Use) -> Result<CheckResult, Self::Error> {
+        let args = OAScopedApplierCheckArguments { usage };
+        let arguments = service_encode(&args, service_check_oa_scoped_applier_check_arguments, enc_oa_scoped_applier_check_arguments, decode_oa_scoped_applier_check_arguments).map_err(CallError::Refusal)?;
+        let request = OAServiceFrame { version: 1, service: "abstraction.credentials/applier@2".into(), method: "Check".into(), arguments };
+        let frame = service_encode(&request, service_check_oa_service_frame, enc_oa_service_frame, decode_oa_service_frame).map_err(CallError::Refusal)?;
+        let reply = self.transport.exchange_frame(&frame).map_err(CallError::Transport)?;
+        let reply = service_decode(&reply, decode_oa_service_reply).map_err(CallError::Refusal)?;
+        if reply.version != 1 {
+            return Err(CallError::Dispatch("unknown_version"));
+        }
+        if reply.service != "abstraction.credentials/applier@2" || reply.method != "Check" {
+            return Err(CallError::Dispatch("mismatched_response"));
+        }
+        if !reply.ok {
+            let error = service_decode(&reply.payload, decode_oa_service_error).map_err(CallError::Refusal)?;
+            if error.code.is_empty() {
+                return Err(CallError::Dispatch("invalid_error"));
+            }
+            return Err(CallError::Service(ServiceError { code: error.code, message: error.message }));
+        }
+        let result = service_decode(&reply.payload, decode_oa_scoped_applier_check_result).map_err(CallError::Refusal)?;
+        Ok(result.value)
+    }
+
+    fn apply(&self, usage: Use) -> Result<ApplyResult, Self::Error> {
+        let args = OAScopedApplierApplyArguments { usage };
+        let arguments = service_encode(&args, service_check_oa_scoped_applier_apply_arguments, enc_oa_scoped_applier_apply_arguments, decode_oa_scoped_applier_apply_arguments).map_err(CallError::Refusal)?;
+        let request = OAServiceFrame { version: 1, service: "abstraction.credentials/applier@2".into(), method: "Apply".into(), arguments };
+        let frame = service_encode(&request, service_check_oa_service_frame, enc_oa_service_frame, decode_oa_service_frame).map_err(CallError::Refusal)?;
+        let reply = self.transport.exchange_frame(&frame).map_err(CallError::Transport)?;
+        let reply = service_decode(&reply, decode_oa_service_reply).map_err(CallError::Refusal)?;
+        if reply.version != 1 {
+            return Err(CallError::Dispatch("unknown_version"));
+        }
+        if reply.service != "abstraction.credentials/applier@2" || reply.method != "Apply" {
+            return Err(CallError::Dispatch("mismatched_response"));
+        }
+        if !reply.ok {
+            let error = service_decode(&reply.payload, decode_oa_service_error).map_err(CallError::Refusal)?;
+            if error.code.is_empty() {
+                return Err(CallError::Dispatch("invalid_error"));
+            }
+            return Err(CallError::Service(ServiceError { code: error.code, message: error.message }));
+        }
+        let result = service_decode(&reply.payload, decode_oa_scoped_applier_apply_result).map_err(CallError::Refusal)?;
+        Ok(result.value)
+    }
+}
+
+fn named_encode_subject(v: &Subject, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_subject(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_subject_at(data: &[u8], depth: i32, limit: i32) -> Result<(Subject, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_subject(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_subject(v: &Subject, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_subject(v, depth)?;
+    decode_subject_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_subject_at(v: &Subject, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_subject(v, depth)?;
+    decode_subject_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_subject_document(v: &Subject) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_subject_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_subject_document(data: &[u8]) -> Result<Subject, Refusal> {
+    let (v, n) = decode_subject_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_scope(v: &Scope, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_scope(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_scope_at(data: &[u8], depth: i32, limit: i32) -> Result<(Scope, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_scope(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_scope(v: &Scope, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_scope(v, depth)?;
+    decode_scope_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_scope_at(v: &Scope, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_scope(v, depth)?;
+    decode_scope_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_scope_document(v: &Scope) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_scope_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_scope_document(data: &[u8]) -> Result<Scope, Refusal> {
+    let (v, n) = decode_scope_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_metadata(v: &Metadata, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_metadata(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_metadata_at(data: &[u8], depth: i32, limit: i32) -> Result<(Metadata, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_metadata(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_metadata(v: &Metadata, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_metadata(v, depth)?;
+    decode_metadata_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_metadata_at(v: &Metadata, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_metadata(v, depth)?;
+    decode_metadata_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_metadata_document(v: &Metadata) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_metadata_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_metadata_document(data: &[u8]) -> Result<Metadata, Refusal> {
+    let (v, n) = decode_metadata_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_registration(v: &Registration, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_registration(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_registration_at(data: &[u8], depth: i32, limit: i32) -> Result<(Registration, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_registration(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_registration(v: &Registration, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_registration(v, depth)?;
+    decode_registration_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_registration_at(v: &Registration, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_registration(v, depth)?;
+    decode_registration_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_registration_document(v: &Registration) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_registration_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_registration_document(data: &[u8]) -> Result<Registration, Refusal> {
+    let (v, n) = decode_registration_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_rotation(v: &Rotation, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_rotation(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_rotation_at(data: &[u8], depth: i32, limit: i32) -> Result<(Rotation, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_rotation(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_rotation(v: &Rotation, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_rotation(v, depth)?;
+    decode_rotation_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_rotation_at(v: &Rotation, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_rotation(v, depth)?;
+    decode_rotation_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_rotation_document(v: &Rotation) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_rotation_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_rotation_document(data: &[u8]) -> Result<Rotation, Refusal> {
+    let (v, n) = decode_rotation_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_store_result(v: &StoreResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_store_result(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_store_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(StoreResult, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_store_result(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_store_result(v: &StoreResult, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_store_result(v, depth)?;
+    decode_store_result_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_store_result_at(v: &StoreResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_store_result(v, depth)?;
+    decode_store_result_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_store_result_document(v: &StoreResult) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_store_result_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_store_result_document(data: &[u8]) -> Result<StoreResult, Refusal> {
+    let (v, n) = decode_store_result_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_rotate_result(v: &RotateResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_rotate_result(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_rotate_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(RotateResult, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_rotate_result(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_rotate_result(v: &RotateResult, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_rotate_result(v, depth)?;
+    decode_rotate_result_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_rotate_result_at(v: &RotateResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_rotate_result(v, depth)?;
+    decode_rotate_result_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_rotate_result_document(v: &RotateResult) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_rotate_result_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_rotate_result_document(data: &[u8]) -> Result<RotateResult, Refusal> {
+    let (v, n) = decode_rotate_result_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_revoke_result(v: &RevokeResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_revoke_result(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_revoke_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(RevokeResult, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_revoke_result(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_revoke_result(v: &RevokeResult, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_revoke_result(v, depth)?;
+    decode_revoke_result_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_revoke_result_at(v: &RevokeResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_revoke_result(v, depth)?;
+    decode_revoke_result_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_revoke_result_document(v: &RevokeResult) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_revoke_result_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_revoke_result_document(data: &[u8]) -> Result<RevokeResult, Refusal> {
+    let (v, n) = decode_revoke_result_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_limits(v: &Limits, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_limits(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_limits_at(data: &[u8], depth: i32, limit: i32) -> Result<(Limits, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_limits(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_limits(v: &Limits, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_limits(v, depth)?;
+    decode_limits_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_limits_at(v: &Limits, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_limits(v, depth)?;
+    decode_limits_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_limits_document(v: &Limits) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_limits_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_limits_document(data: &[u8]) -> Result<Limits, Refusal> {
+    let (v, n) = decode_limits_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_metadata_page(v: &MetadataPage, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_metadata_page(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_metadata_page_at(data: &[u8], depth: i32, limit: i32) -> Result<(MetadataPage, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_metadata_page(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_metadata_page(v: &MetadataPage, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_metadata_page(v, depth)?;
+    decode_metadata_page_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_metadata_page_at(v: &MetadataPage, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_metadata_page(v, depth)?;
+    decode_metadata_page_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_metadata_page_document(v: &MetadataPage) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_metadata_page_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_metadata_page_document(data: &[u8]) -> Result<MetadataPage, Refusal> {
+    let (v, n) = decode_metadata_page_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_audit_entry(v: &AuditEntry, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_audit_entry(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_audit_entry_at(data: &[u8], depth: i32, limit: i32) -> Result<(AuditEntry, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_audit_entry(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_audit_entry(v: &AuditEntry, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_audit_entry(v, depth)?;
+    decode_audit_entry_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_audit_entry_at(v: &AuditEntry, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_audit_entry(v, depth)?;
+    decode_audit_entry_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_audit_entry_document(v: &AuditEntry) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_audit_entry_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_audit_entry_document(data: &[u8]) -> Result<AuditEntry, Refusal> {
+    let (v, n) = decode_audit_entry_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_audit_page(v: &AuditPage, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_audit_page(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_audit_page_at(data: &[u8], depth: i32, limit: i32) -> Result<(AuditPage, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_audit_page(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_audit_page(v: &AuditPage, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_audit_page(v, depth)?;
+    decode_audit_page_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_audit_page_at(v: &AuditPage, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_audit_page(v, depth)?;
+    decode_audit_page_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_audit_page_document(v: &AuditPage) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_audit_page_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_audit_page_document(data: &[u8]) -> Result<AuditPage, Refusal> {
+    let (v, n) = decode_audit_page_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_use(v: &Use, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_use(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_use_at(data: &[u8], depth: i32, limit: i32) -> Result<(Use, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_use(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_use(v: &Use, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_use(v, depth)?;
+    decode_use_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_use_at(v: &Use, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_use(v, depth)?;
+    decode_use_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_use_document(v: &Use) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_use_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_use_document(data: &[u8]) -> Result<Use, Refusal> {
+    let (v, n) = decode_use_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_credential_resource(v: &CredentialResource, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_credential_resource(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_credential_resource_at(data: &[u8], depth: i32, limit: i32) -> Result<(CredentialResource, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_credential_resource(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_credential_resource(v: &CredentialResource, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_credential_resource(v, depth)?;
+    decode_credential_resource_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_credential_resource_at(v: &CredentialResource, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_credential_resource(v, depth)?;
+    decode_credential_resource_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_credential_resource_document(v: &CredentialResource) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_credential_resource_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_credential_resource_document(data: &[u8]) -> Result<CredentialResource, Refusal> {
+    let (v, n) = decode_credential_resource_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_check_result(v: &CheckResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_check_result(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_check_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(CheckResult, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_check_result(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_check_result(v: &CheckResult, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_check_result(v, depth)?;
+    decode_check_result_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_check_result_at(v: &CheckResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_check_result(v, depth)?;
+    decode_check_result_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_check_result_document(v: &CheckResult) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_check_result_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_check_result_document(data: &[u8]) -> Result<CheckResult, Refusal> {
+    let (v, n) = decode_check_result_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_apply_result(v: &ApplyResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_apply_result(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_apply_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(ApplyResult, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_apply_result(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_apply_result(v: &ApplyResult, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_apply_result(v, depth)?;
+    decode_apply_result_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_apply_result_at(v: &ApplyResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_apply_result(v, depth)?;
+    decode_apply_result_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_apply_result_document(v: &ApplyResult) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_apply_result_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_apply_result_document(data: &[u8]) -> Result<ApplyResult, Refusal> {
+    let (v, n) = decode_apply_result_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_secret_value(v: &SecretValue, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_secret_value(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_secret_value_at(data: &[u8], depth: i32, limit: i32) -> Result<(SecretValue, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_secret_value(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_secret_value(v: &SecretValue, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_secret_value(v, depth)?;
+    decode_secret_value_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_secret_value_at(v: &SecretValue, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_secret_value(v, depth)?;
+    decode_secret_value_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_secret_value_document(v: &SecretValue) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_secret_value_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_secret_value_document(data: &[u8]) -> Result<SecretValue, Refusal> {
+    let (v, n) = decode_secret_value_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_secret_read_result(v: &SecretReadResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_secret_read_result(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_secret_read_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(SecretReadResult, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_secret_read_result(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_secret_read_result(v: &SecretReadResult, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_secret_read_result(v, depth)?;
+    decode_secret_read_result_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_secret_read_result_at(v: &SecretReadResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_secret_read_result(v, depth)?;
+    decode_secret_read_result_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_secret_read_result_document(v: &SecretReadResult) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_secret_read_result_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_secret_read_result_document(data: &[u8]) -> Result<SecretReadResult, Refusal> {
+    let (v, n) = decode_secret_read_result_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
+fn named_encode_metadata_read_result(v: &MetadataReadResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut out = Vec::new();
+        enc_metadata_read_result(&mut out, v, depth);
+        out
+    })) {
+        Ok(out) => Ok(out),
+        Err(p) => match p.downcast::<Refusal>() {
+            Ok(e) => Err(*e),
+            Err(p) => std::panic::resume_unwind(p),
+        },
+    }
+}
+
+fn decode_metadata_read_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(MetadataReadResult, usize), Refusal> {
+    let mut r = Reader { buf: data, pos: 0, depth, limit: if limit < DEPTH_LIMIT { limit } else { DEPTH_LIMIT } };
+    if depth < 0 || limit < 1 {
+        return r.refuse("depth_exceeded");
+    }
+    r.skip_ws();
+    let v = decode_metadata_read_result(&mut r)?;
+    Ok((v, r.pos))
+}
+
+fn check_metadata_read_result(v: &MetadataReadResult, depth: i32, limit: i32) -> Result<(), Refusal> {
+    if depth < 0 || limit < 1 {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_metadata_read_result(v, depth)?;
+    decode_metadata_read_result_at(&out, depth, limit).map(|_| ())
+}
+
+fn encode_metadata_read_result_at(v: &MetadataReadResult, depth: i32) -> Result<Vec<u8>, Refusal> {
+    if !(0..DEPTH_LIMIT).contains(&depth) {
+        return Err(Refusal { word: "depth_exceeded", offset: 0 });
+    }
+    let out = named_encode_metadata_read_result(v, depth)?;
+    decode_metadata_read_result_at(&out, depth, DEPTH_LIMIT)?;
+    Ok(out)
+}
+
+pub fn encode_metadata_read_result_document(v: &MetadataReadResult) -> Result<Vec<u8>, Refusal> {
+    let mut out = encode_metadata_read_result_at(v, 0)?;
+    out.push(b'\n');
+    Ok(out)
+}
+
+pub fn decode_metadata_read_result_document(data: &[u8]) -> Result<MetadataReadResult, Refusal> {
+    let (v, n) = decode_metadata_read_result_at(data, 0, DEPTH_LIMIT)?;
+    let mut r = Reader { buf: data, pos: n, depth: 0, limit: DEPTH_LIMIT };
+    r.skip_ws();
+    if r.pos != data.len() {
+        return r.refuse("trailing_bytes");
+    }
+    Ok(v)
+}
+
 /// Items generated crates that include this one, and conformance drivers,
 /// reach. Nothing here is API; it may change in any release.
 pub mod internal {
@@ -4325,5 +7634,233 @@ pub mod internal {
     /// [DEF-G2] rfc3339-wide: what a reader accepts.
     pub fn wide_timestamp(text: &str) -> bool {
         super::wide_timestamp(text)
+    }
+
+    pub fn decode_subject_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::Subject, usize), super::Refusal> {
+        super::decode_subject_at(data, depth, limit)
+    }
+
+    pub fn check_subject(v: &super::Subject, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_subject(v, depth, limit)
+    }
+
+    pub fn encode_subject_at(v: &super::Subject, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_subject_at(v, depth)
+    }
+
+    pub fn decode_scope_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::Scope, usize), super::Refusal> {
+        super::decode_scope_at(data, depth, limit)
+    }
+
+    pub fn check_scope(v: &super::Scope, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_scope(v, depth, limit)
+    }
+
+    pub fn encode_scope_at(v: &super::Scope, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_scope_at(v, depth)
+    }
+
+    pub fn decode_metadata_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::Metadata, usize), super::Refusal> {
+        super::decode_metadata_at(data, depth, limit)
+    }
+
+    pub fn check_metadata(v: &super::Metadata, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_metadata(v, depth, limit)
+    }
+
+    pub fn encode_metadata_at(v: &super::Metadata, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_metadata_at(v, depth)
+    }
+
+    pub fn decode_registration_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::Registration, usize), super::Refusal> {
+        super::decode_registration_at(data, depth, limit)
+    }
+
+    pub fn check_registration(v: &super::Registration, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_registration(v, depth, limit)
+    }
+
+    pub fn encode_registration_at(v: &super::Registration, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_registration_at(v, depth)
+    }
+
+    pub fn decode_rotation_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::Rotation, usize), super::Refusal> {
+        super::decode_rotation_at(data, depth, limit)
+    }
+
+    pub fn check_rotation(v: &super::Rotation, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_rotation(v, depth, limit)
+    }
+
+    pub fn encode_rotation_at(v: &super::Rotation, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_rotation_at(v, depth)
+    }
+
+    pub fn decode_store_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::StoreResult, usize), super::Refusal> {
+        super::decode_store_result_at(data, depth, limit)
+    }
+
+    pub fn check_store_result(v: &super::StoreResult, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_store_result(v, depth, limit)
+    }
+
+    pub fn encode_store_result_at(v: &super::StoreResult, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_store_result_at(v, depth)
+    }
+
+    pub fn decode_rotate_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::RotateResult, usize), super::Refusal> {
+        super::decode_rotate_result_at(data, depth, limit)
+    }
+
+    pub fn check_rotate_result(v: &super::RotateResult, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_rotate_result(v, depth, limit)
+    }
+
+    pub fn encode_rotate_result_at(v: &super::RotateResult, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_rotate_result_at(v, depth)
+    }
+
+    pub fn decode_revoke_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::RevokeResult, usize), super::Refusal> {
+        super::decode_revoke_result_at(data, depth, limit)
+    }
+
+    pub fn check_revoke_result(v: &super::RevokeResult, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_revoke_result(v, depth, limit)
+    }
+
+    pub fn encode_revoke_result_at(v: &super::RevokeResult, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_revoke_result_at(v, depth)
+    }
+
+    pub fn decode_limits_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::Limits, usize), super::Refusal> {
+        super::decode_limits_at(data, depth, limit)
+    }
+
+    pub fn check_limits(v: &super::Limits, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_limits(v, depth, limit)
+    }
+
+    pub fn encode_limits_at(v: &super::Limits, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_limits_at(v, depth)
+    }
+
+    pub fn decode_metadata_page_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::MetadataPage, usize), super::Refusal> {
+        super::decode_metadata_page_at(data, depth, limit)
+    }
+
+    pub fn check_metadata_page(v: &super::MetadataPage, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_metadata_page(v, depth, limit)
+    }
+
+    pub fn encode_metadata_page_at(v: &super::MetadataPage, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_metadata_page_at(v, depth)
+    }
+
+    pub fn decode_audit_entry_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::AuditEntry, usize), super::Refusal> {
+        super::decode_audit_entry_at(data, depth, limit)
+    }
+
+    pub fn check_audit_entry(v: &super::AuditEntry, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_audit_entry(v, depth, limit)
+    }
+
+    pub fn encode_audit_entry_at(v: &super::AuditEntry, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_audit_entry_at(v, depth)
+    }
+
+    pub fn decode_audit_page_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::AuditPage, usize), super::Refusal> {
+        super::decode_audit_page_at(data, depth, limit)
+    }
+
+    pub fn check_audit_page(v: &super::AuditPage, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_audit_page(v, depth, limit)
+    }
+
+    pub fn encode_audit_page_at(v: &super::AuditPage, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_audit_page_at(v, depth)
+    }
+
+    pub fn decode_use_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::Use, usize), super::Refusal> {
+        super::decode_use_at(data, depth, limit)
+    }
+
+    pub fn check_use(v: &super::Use, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_use(v, depth, limit)
+    }
+
+    pub fn encode_use_at(v: &super::Use, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_use_at(v, depth)
+    }
+
+    pub fn decode_credential_resource_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::CredentialResource, usize), super::Refusal> {
+        super::decode_credential_resource_at(data, depth, limit)
+    }
+
+    pub fn check_credential_resource(v: &super::CredentialResource, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_credential_resource(v, depth, limit)
+    }
+
+    pub fn encode_credential_resource_at(v: &super::CredentialResource, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_credential_resource_at(v, depth)
+    }
+
+    pub fn decode_check_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::CheckResult, usize), super::Refusal> {
+        super::decode_check_result_at(data, depth, limit)
+    }
+
+    pub fn check_check_result(v: &super::CheckResult, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_check_result(v, depth, limit)
+    }
+
+    pub fn encode_check_result_at(v: &super::CheckResult, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_check_result_at(v, depth)
+    }
+
+    pub fn decode_apply_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::ApplyResult, usize), super::Refusal> {
+        super::decode_apply_result_at(data, depth, limit)
+    }
+
+    pub fn check_apply_result(v: &super::ApplyResult, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_apply_result(v, depth, limit)
+    }
+
+    pub fn encode_apply_result_at(v: &super::ApplyResult, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_apply_result_at(v, depth)
+    }
+
+    pub fn decode_secret_value_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::SecretValue, usize), super::Refusal> {
+        super::decode_secret_value_at(data, depth, limit)
+    }
+
+    pub fn check_secret_value(v: &super::SecretValue, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_secret_value(v, depth, limit)
+    }
+
+    pub fn encode_secret_value_at(v: &super::SecretValue, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_secret_value_at(v, depth)
+    }
+
+    pub fn decode_secret_read_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::SecretReadResult, usize), super::Refusal> {
+        super::decode_secret_read_result_at(data, depth, limit)
+    }
+
+    pub fn check_secret_read_result(v: &super::SecretReadResult, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_secret_read_result(v, depth, limit)
+    }
+
+    pub fn encode_secret_read_result_at(v: &super::SecretReadResult, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_secret_read_result_at(v, depth)
+    }
+
+    pub fn decode_metadata_read_result_at(data: &[u8], depth: i32, limit: i32) -> Result<(super::MetadataReadResult, usize), super::Refusal> {
+        super::decode_metadata_read_result_at(data, depth, limit)
+    }
+
+    pub fn check_metadata_read_result(v: &super::MetadataReadResult, depth: i32, limit: i32) -> Result<(), super::Refusal> {
+        super::check_metadata_read_result(v, depth, limit)
+    }
+
+    pub fn encode_metadata_read_result_at(v: &super::MetadataReadResult, depth: i32) -> Result<Vec<u8>, super::Refusal> {
+        super::encode_metadata_read_result_at(v, depth)
     }
 }

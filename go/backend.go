@@ -36,10 +36,17 @@ var (
 // Secure store words reported in Limits.secure_store.
 const (
 	StoreWindowsCredentialManager = "windows-credential-manager"
-	StoreSecretService            = "secret-service"
-	StoreFile                     = "file-0600"
-	StoreMacOSKeychain            = "macos-keychain"
-	StoreNone                     = "none"
+	// StoreWindowsDPAPIFile is the runtime-only Windows store: DPAPI-sealed
+	// item files under the state directory. A provider word, as
+	// StoreMacOSLoginKeychain is.
+	StoreWindowsDPAPIFile = "windows-dpapi-file"
+	StoreSecretService    = "secret-service"
+	StoreFile             = "file-0600"
+	StoreMacOSKeychain    = "macos-keychain"
+	// StoreMacOSLoginKeychain identifies the native user file-based Keychain.
+	// This provider word preserves the separate data-protection store name.
+	StoreMacOSLoginKeychain = "macos-login-keychain"
+	StoreNone               = "none"
 )
 
 // MaxSecretBytes is the contract ceiling for any store.

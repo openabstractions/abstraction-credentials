@@ -1,7 +1,21 @@
 # abstraction-credentials
 
+*For applications that name a stored key on a call. Operators store keys as
+[Register and use a credential](#register-and-use-a-credential) shows.*
+
 A person stores a credential once, through the command line or the Panel. An
-application holds the credential's name and never the secret bytes.
+application using the current Holder and Use interfaces holds the credential's
+name; the service keeps the secret bytes.
+
+The [permission journey](https://github.com/openabstractions/abstractions/blob/main/examples/rights-playground/README.md)
+explains named Use, separate raw-value Read, one/all scope and finite full
+control. The implemented requester-bound reader discloses bytes to its authorized
+caller. The connected runtime advertises its current receiving support; the
+journey records platform and human acceptance separately.
+
+**What's new here:** Applications hold a credential's name. The service holds
+the secret, applies it to each request inside the service, and only for the
+targets the credential names.
 
 A stored credential is applied only by the OA consumers registered today:
 download's HTTP execution, the model resolver, and each inference modality
@@ -165,9 +179,10 @@ generated Go, C++, Python, Rust and JavaScript protocol packages live under
 bounded audit journal. It stores metadata in an explicit state file and secret
 bytes in exactly one configured backend.
 
-Available backends are Windows Credential Manager, Linux Secret Service, an
-explicit Linux file backend for controlled deployments, and macOS Keychain with
-cgo. A credential manager with no backend returns `no_secure_store`.
+Available backends are the Windows DPAPI-sealed file store a fresh Windows
+state binds to, Windows Credential Manager for state already bound to it, Linux
+Secret Service, an explicit Linux file backend for controlled deployments, and
+macOS Keychain with cgo. A credential manager with no backend returns `no_secure_store`.
 Machine-wide runtimes also return `no_secure_store` because these stores are
 per-account.
 
@@ -200,3 +215,36 @@ loopback providers and make no paid-provider claim.
 
 The Go implementation requires Go 1.26 or newer. Platform backends carry their
 own OS requirements. Apache-2.0; see [LICENSE](LICENSE).
+
+<!-- BEGIN GENERATED PERMISSION DEFINITIONS -->
+
+## Permission definitions
+
+Generated from the existing compiled catalogue. [RIGHTS.json](RIGHTS.json) contains the complete action/profile records, disclosure, lifecycle, first-use behavior, selector support and finite bundles.
+
+This reference records compiled receiving support; RIGHTS.json names the compilation context. A connected runtime advertises current availability and selector support. These definitions supply no grant.
+
+| Action | Resource profile | Owning operations | First-use targets | Compiled receiver |
+|---|---|---|---|---|
+| `abstraction.credentials/apply` | `abstraction.credentials/named-use@1` | `abstraction.credentials/applier@1#Check`, `abstraction.credentials/applier@1#Apply` | Legacy `exact` | served in compiled context |
+| `abstraction.credentials/apply` | `abstraction.credentials/named-use@2` | `abstraction.credentials/applier@2#Check`, `abstraction.credentials/applier@2#Apply` | One, All | served in compiled context |
+| `abstraction.credentials/holder.manage` | `abstraction.rights/legacy-exact-string@1` | `abstraction.credentials/holder@1#Store`, `abstraction.credentials/holder@1#Rotate`, `abstraction.credentials/holder@1#Revoke` | `none` | served in compiled context |
+| `abstraction.credentials/holder.read` | `abstraction.rights/legacy-exact-string@1` | `abstraction.credentials/holder@1#List`, `abstraction.credentials/holder@1#Audit` | `none` | served in compiled context |
+| `abstraction.credentials/secret.create` | `abstraction.credentials/named-secret@1` | `abstraction.credentials/holder@2#Store` | One, All | served in compiled context |
+| `abstraction.credentials/secret.metadata.read` | `abstraction.credentials/named-secret@1` | `abstraction.credentials/holder@2#Metadata` | One, All | served in compiled context |
+| `abstraction.credentials/secret.read` | `abstraction.credentials/named-secret@1` | `abstraction.credentials/reader@1#Read` | One, All | served in compiled context |
+| `abstraction.credentials/secret.revoke` | `abstraction.credentials/named-secret@1` | `abstraction.credentials/holder@2#Revoke` | One, All | served in compiled context |
+| `abstraction.credentials/secret.rotate` | `abstraction.credentials/named-secret@1` | `abstraction.credentials/holder@2#Rotate` | One, All | served in compiled context |
+
+The finite `abstraction.credentials/full-control@1` bundle contains these exact action/profile pairs:
+
+- `abstraction.credentials/apply` on `abstraction.credentials/named-use@2`
+- `abstraction.credentials/secret.create` on `abstraction.credentials/named-secret@1`
+- `abstraction.credentials/secret.metadata.read` on `abstraction.credentials/named-secret@1`
+- `abstraction.credentials/secret.read` on `abstraction.credentials/named-secret@1`
+- `abstraction.credentials/secret.revoke` on `abstraction.credentials/named-secret@1`
+- `abstraction.credentials/secret.rotate` on `abstraction.credentials/named-secret@1`
+
+Use, raw value Read, Create a new slot, Rotate its value, Delete its value with retained revoked metadata, and named metadata Read. Raw Read lets this app export, copy or use the secret elsewhere. This frozen six-operation list includes no enumeration, policy administration, future operation, profile version or runtime-managed local key.
+
+<!-- END GENERATED PERMISSION DEFINITIONS -->

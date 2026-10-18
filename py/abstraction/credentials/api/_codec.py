@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 
+
 _HEX = b"0123456789abcdef"
 _WS = (0x20, 0x09, 0x0A, 0x0D)
 _SHORT = {0x22: b'\\"', 0x5C: b"\\\\", 0x08: b"\\b", 0x0C: b"\\f",
@@ -243,6 +244,28 @@ class ApplyOutcome(_StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class SecretReadOutcome(_StrEnum):
+    READ = "read"
+    UNKNOWN = "unknown"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    LOST = "lost"
+    INVALID = "invalid"
+    FORBIDDEN = "forbidden"
+    UNAVAILABLE = "unavailable"
+    CONFLICT = "conflict"
+    UNSUPPORTED_KIND = "unsupported_kind"
+
+
+class MetadataReadOutcome(_StrEnum):
+    FOUND = "found"
+    UNKNOWN = "unknown"
+    INVALID = "invalid"
+    FORBIDDEN = "forbidden"
+    UNAVAILABLE = "unavailable"
+    CONFLICT = "conflict"
+
+
 class ServiceErrorCode(_StrEnum):
     HANDLER_ERROR = "handler_error"
     INVALID_RESULT = "invalid_result"
@@ -255,10 +278,10 @@ class ServiceErrorCode(_StrEnum):
 CREDENTIAL_KINDS = ["bearer", "header"]
 
 
-RESOURCE_ACTIONS = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply"]
+RESOURCE_ACTIONS = ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"]
 
 
-EXECUTION_GUARANTEES = ["abstraction.download/credentials@1"]
+EXECUTION_GUARANTEES = ["abstraction.download/credentials@1", "abstraction.download/credentials@2"]
 
 
 CONSUMERS = ["abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"]
@@ -460,6 +483,24 @@ class Use:
 
 
 @dataclasses.dataclass(kw_only=True)
+class CredentialResource:
+    """An account-owned credential name slot. name is 1..64 ASCII letters, digits,
+    '_', '.' or '-'; the old exact rights resource is credential:<name>.
+    Account/program bind separately at the receiving boundary. The canonical
+    generated document is the target of named-secret@1 and named-use@2, whose
+    collection is saved application credentials of kinds accepted by Store;
+    runtime local-key@1 records are excluded. named-use@1 retains its original
+    exact route. Name grants follow the current slot, including rotation and a
+    recreated registration's current restrictions. Read discloses the current
+    value to the bound requesting program under a distinct permission.
+    Management operations convey only their explicit supported effects. Every
+    target operation revalidates current membership, state and expiry after
+    waits."""
+
+    name: str = ""
+
+
+@dataclasses.dataclass(kw_only=True)
 class CheckResult:
     """applied means Apply with the same Use would carry headers now. revision is
     present for evaluated records. No secret is read for a check."""
@@ -486,6 +527,48 @@ class ApplyResult:
     outcome: ApplyOutcome | None = None
     revision: str = ""
     headers: dict[str, str] = dataclasses.field(default_factory=dict)
+
+
+@dataclasses.dataclass(kw_only=True)
+class SecretValue:
+    """Successful reader@1 response only. name is the requested canonical slot and
+    revision is the actual current record revision. secret is a fresh copy of
+    1..4096 bytes, within the configured store's limit. The receiving
+    application owns this returned copy and clears it after use; no
+    client/provider retains or logs it. No metadata, audit, history, error, Asks
+    record or diagnostic contains the value or a derivative."""
+
+    name: str = ""
+    revision: str = ""
+    secret: bytes = b""
+
+
+@dataclasses.dataclass(kw_only=True)
+class SecretReadResult:
+    """value is present exactly for read. Every refusal has no name, revision,
+    value or derived byte data. Native recipient and explicit Read authority are
+    checked before any existence/state disclosure and again before returning
+    bytes or a state-bearing result. forbidden covers absent authority and an
+    unproven/foreign recipient. conflict means the selected policy snapshot
+    became stale; no bytes are returned. Runtime-managed local-key@1 is outside
+    this collection and reads unsupported_kind only after authorization.
+    Consumer/website restrictions constrain service-mediated Use; raw Read
+    explicitly exports the value to the requesting application."""
+
+    outcome: SecretReadOutcome | None = None
+    value: SecretValue | None = None
+
+
+@dataclasses.dataclass(kw_only=True)
+class MetadataReadResult:
+    """found carries only the authorized name's current metadata, including an
+    expired/lost record or a tombstone inside retention. Other outcomes carry no
+    current or revision. This lookup supports conditional-edit reconciliation
+    without account List/Audit access. Runtime-managed records are outside the
+    collection and read forbidden."""
+
+    outcome: MetadataReadOutcome | None = None
+    current: Metadata | None = None
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -525,6 +608,44 @@ class _ApplierCheckArguments:
 
 @dataclasses.dataclass(kw_only=True)
 class _ApplierApplyArguments:
+    usage: Use = dataclasses.field(default_factory=Use)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _SecretReaderReadArguments:
+    name: str = ""
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderStoreArguments:
+    expected_revision: str = ""
+    registration: Registration = dataclasses.field(default_factory=Registration)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderRotateArguments:
+    expected_revision: str = ""
+    rotation: Rotation = dataclasses.field(default_factory=Rotation)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderRevokeArguments:
+    expected_revision: str = ""
+    name: str = ""
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderMetadataArguments:
+    name: str = ""
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedApplierCheckArguments:
+    usage: Use = dataclasses.field(default_factory=Use)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedApplierApplyArguments:
     usage: Use = dataclasses.field(default_factory=Use)
 
 
@@ -583,6 +704,41 @@ class _ApplierCheckResult:
 
 @dataclasses.dataclass(kw_only=True)
 class _ApplierApplyResult:
+    value: ApplyResult = dataclasses.field(default_factory=ApplyResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _SecretReaderReadResult:
+    value: SecretReadResult = dataclasses.field(default_factory=SecretReadResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderStoreResult:
+    value: StoreResult = dataclasses.field(default_factory=StoreResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderRotateResult:
+    value: RotateResult = dataclasses.field(default_factory=RotateResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderRevokeResult:
+    value: RevokeResult = dataclasses.field(default_factory=RevokeResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedHolderMetadataResult:
+    value: MetadataReadResult = dataclasses.field(default_factory=MetadataReadResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedApplierCheckResult:
+    value: CheckResult = dataclasses.field(default_factory=CheckResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ScopedApplierApplyResult:
     value: ApplyResult = dataclasses.field(default_factory=ApplyResult)
 
 
@@ -1052,6 +1208,18 @@ def _write_use(out, v, depth):
     out += b"}"
 
 
+def _write_credential_resource(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "name")
+    out += b": "
+    _esc(out, v.name)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
 def _write_check_result(out, v, depth):
     _closed_enum(ApplyOutcome, v.outcome)
     out += b"{"
@@ -1092,6 +1260,70 @@ def _write_apply_result(out, v, depth):
         _esc(out, "headers")
         out += b": "
         _strmap(out, v.headers, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_secret_value(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "name")
+    out += b": "
+    _esc(out, v.name)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "revision")
+    out += b": "
+    _esc(out, v.revision)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "secret")
+    out += b": "
+    _esc(out, _encode_binary(v.secret))
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_secret_read_result(out, v, depth):
+    _closed_enum(SecretReadOutcome, v.outcome)
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "outcome")
+    out += b": "
+    _esc(out, v.outcome)
+    if v.value is not None:
+        out += b","
+        out += b"\n"
+        _pad(out, depth + 1)
+        _esc(out, "value")
+        out += b": "
+        _write_secret_value(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_metadata_read_result(out, v, depth):
+    _closed_enum(MetadataReadOutcome, v.outcome)
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "outcome")
+    out += b": "
+    _esc(out, v.outcome)
+    if v.current is not None:
+        out += b","
+        out += b"\n"
+        _pad(out, depth + 1)
+        _esc(out, "current")
+        out += b": "
+        _write_metadata(out, v.current, depth + 1)
     out += b"\n"
     _pad(out, depth)
     out += b"}"
@@ -1200,6 +1432,108 @@ def _write_oa_applier_check_arguments(out, v, depth):
 
 
 def _write_oa_applier_apply_arguments(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "usage")
+    out += b": "
+    _write_use(out, v.usage, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_secret_reader_read_arguments(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "name")
+    out += b": "
+    _esc(out, v.name)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_store_arguments(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "expected_revision")
+    out += b": "
+    _esc(out, v.expected_revision)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "registration")
+    out += b": "
+    _write_registration(out, v.registration, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_rotate_arguments(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "expected_revision")
+    out += b": "
+    _esc(out, v.expected_revision)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "rotation")
+    out += b": "
+    _write_rotation(out, v.rotation, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_revoke_arguments(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "expected_revision")
+    out += b": "
+    _esc(out, v.expected_revision)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "name")
+    out += b": "
+    _esc(out, v.name)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_metadata_arguments(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "name")
+    out += b": "
+    _esc(out, v.name)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_applier_check_arguments(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "usage")
+    out += b": "
+    _write_use(out, v.usage, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_applier_apply_arguments(out, v, depth):
     out += b"{"
     out += b"\n"
     _pad(out, depth + 1)
@@ -1379,6 +1713,90 @@ def _write_oa_applier_apply_result(out, v, depth):
     out += b"}"
 
 
+def _write_oa_secret_reader_read_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_secret_read_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_store_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_store_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_rotate_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_rotate_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_revoke_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_revoke_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_holder_metadata_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_metadata_read_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_applier_check_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_check_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_scoped_applier_apply_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_apply_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
 def encode(v):
     out = bytearray()
     _write_registration(out, v, 0)
@@ -1405,12 +1823,13 @@ class Refusal(ValueError):
 
 
 class _Reader:
-    __slots__ = ("buf", "pos", "depth")
+    __slots__ = ("buf", "pos", "depth", "limit")
 
     def __init__(self, buf):
         self.buf = buf
         self.pos = 0
         self.depth = 0
+        self.limit = _DEPTH_LIMIT
 
     def refuse(self, word):
         return Refusal(word, self.pos)
@@ -1424,7 +1843,7 @@ class _Reader:
 
     def enter(self):
         self.depth += 1
-        if self.depth > _DEPTH_LIMIT:
+        if self.depth > self.limit:
             raise self.refuse("depth_exceeded")
 
     def digit(self):
@@ -2619,6 +3038,45 @@ def _read_use(r):
     return v
 
 
+def _read_credential_resource(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = CredentialResource()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "name":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.name = r.string()
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
 def _read_check_result(r):
     if r.at() != _LBRACE:
         raise r.refuse("wrong_type")
@@ -2715,6 +3173,151 @@ def _read_apply_result(r):
         raise r.refuse("missing_field")
     try:
         v.outcome = ApplyOutcome(v.outcome)
+    except ValueError:
+        raise r.refuse("bad_enum") from None
+    return v
+
+
+def _read_secret_value(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = SecretValue()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "name":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.name = r.string()
+            elif key == "revision":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.revision = r.string()
+            elif key == "secret":
+                if seen & 4:
+                    raise r.refuse("duplicate_field")
+                seen |= 4
+                v.secret = _decode_binary(r.string())
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 7 != 7:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_secret_read_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = SecretReadResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "outcome":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.outcome = r.string()
+            elif key == "value":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.value = _read_secret_value(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    try:
+        v.outcome = SecretReadOutcome(v.outcome)
+    except ValueError:
+        raise r.refuse("bad_enum") from None
+    return v
+
+
+def _read_metadata_read_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = MetadataReadResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "outcome":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.outcome = r.string()
+            elif key == "current":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.current = _read_metadata(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    try:
+        v.outcome = MetadataReadOutcome(v.outcome)
     except ValueError:
         raise r.refuse("bad_enum") from None
     return v
@@ -2985,6 +3588,294 @@ def _read_oa_applier_apply_arguments(r):
     r.enter()
     r.pos += 1
     v = _ApplierApplyArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "usage":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.usage = _read_use(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_secret_reader_read_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _SecretReaderReadArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "name":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.name = r.string()
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_store_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderStoreArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "expected_revision":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.expected_revision = r.string()
+            elif key == "registration":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.registration = _read_registration(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 3 != 3:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_rotate_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderRotateArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "expected_revision":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.expected_revision = r.string()
+            elif key == "rotation":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.rotation = _read_rotation(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 3 != 3:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_revoke_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderRevokeArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "expected_revision":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.expected_revision = r.string()
+            elif key == "name":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.name = r.string()
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 3 != 3:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_metadata_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderMetadataArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "name":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.name = r.string()
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_applier_check_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedApplierCheckArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "usage":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.usage = _read_use(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_applier_apply_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedApplierApplyArguments()
     seen = 0
     r.ws()
     if r.at() != _RBRACE:
@@ -3448,6 +4339,279 @@ def _read_oa_applier_apply_result(r):
     return v
 
 
+def _read_oa_secret_reader_read_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _SecretReaderReadResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_secret_read_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_store_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderStoreResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_store_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_rotate_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderRotateResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_rotate_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_revoke_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderRevokeResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_revoke_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_holder_metadata_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedHolderMetadataResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_metadata_read_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_applier_check_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedApplierCheckResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_check_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_scoped_applier_apply_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ScopedApplierApplyResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_apply_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
 def decode(data):
     r = _Reader(bytes(data))
     r.ws()
@@ -3466,39 +4630,21 @@ _REFUSALS = ["malformed", "bad_string", "number_spelling", "wrong_type", "bad_ti
 def _refusal_rank(word):
     return _REFUSALS.index(word) if word in _REFUSALS else -1
 
+import base64
+import binascii
+
 def _encode_binary(value):
     if type(value) is not bytes:
         raise Refusal("wrong_type", 0)
-    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-    out = []
-    for i in range(0, len(value), 3):
-        chunk = value[i:i+3]
-        v = int.from_bytes(chunk, "big") << (8 * (3-len(chunk)))
-        out.extend((alphabet[v >> 18], alphabet[(v >> 12) & 63], alphabet[(v >> 6) & 63] if len(chunk)>1 else "=", alphabet[v & 63] if len(chunk)>2 else "="))
-    return "".join(out)
+    return base64.b64encode(value).decode("ascii")
 
 def _decode_binary(text):
-    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     def bad():
         raise _Reader(b"").refuse("bad_binary")
-    if len(text) % 4: bad()
-    out = bytearray()
-    for i in range(0,len(text),4):
-        v, pad = 0, 0
-        for j,c in enumerate(text[i:i+4]):
-            if c == "=":
-                if j<2 or i+4 != len(text): bad()
-                pad += 1
-                digit = 0
-            else:
-                if pad: bad()
-                digit = alphabet.find(c)
-                if digit < 0: bad()
-            v = (v << 6) | digit
-        out.append(v >> 16)
-        if pad < 2: out.append((v >> 8) & 255)
-        if pad == 0: out.append(v & 255)
-    result = bytes(out)
+    try:
+        result = base64.b64decode(text, validate=True)
+    except (ValueError, binascii.Error):
+        bad()
     if _encode_binary(result) != text: bad()
     return result
 
@@ -3630,8 +4776,12 @@ _SERVICE_RECORDS = {
     "AuditEntry": (AuditEntry, [("sequence", "i64", "never"), ("time", "string", "never"), ("event", "string", "never"), ("name", "string", "never"), ("revision", "string", "never"), ("subject", "Subject", "absent"), ("consumer", "string", "absent"), ("target", "string", "absent"), ("outcome", "string", "absent"), ]),
     "AuditPage": (AuditPage, [("outcome", "enum", "never"), ("entries", "list<AuditEntry>", "never"), ("next", "string", "never"), ("at_end", "bool", "never"), ]),
     "Use": (Use, [("subject", "Subject", "never"), ("consumer", "string", "never"), ("name", "string", "never"), ("target", "string", "never"), ("challenge", "string", "absent"), ]),
+    "CredentialResource": (CredentialResource, [("name", "string", "never"), ]),
     "CheckResult": (CheckResult, [("outcome", "enum", "never"), ("revision", "string", "never"), ]),
     "ApplyResult": (ApplyResult, [("outcome", "enum", "never"), ("revision", "string", "never"), ("headers", "map<string,string>", "zero"), ]),
+    "SecretValue": (SecretValue, [("name", "string", "never"), ("revision", "string", "never"), ("secret", "binary", "never"), ]),
+    "SecretReadResult": (SecretReadResult, [("outcome", "enum", "never"), ("value", "SecretValue", "absent"), ]),
+    "MetadataReadResult": (MetadataReadResult, [("outcome", "enum", "never"), ("current", "Metadata", "absent"), ]),
     "OAHolderStoreArguments": (_HolderStoreArguments, [("expected_revision", "string", "never"), ("registration", "Registration", "never"), ]),
     "OAHolderRotateArguments": (_HolderRotateArguments, [("expected_revision", "string", "never"), ("rotation", "Rotation", "never"), ]),
     "OAHolderRevokeArguments": (_HolderRevokeArguments, [("expected_revision", "string", "never"), ("name", "string", "never"), ]),
@@ -3639,6 +4789,13 @@ _SERVICE_RECORDS = {
     "OAHolderAuditArguments": (_HolderAuditArguments, [("cursor", "string", "never"), ("max_entries", "i64", "never"), ]),
     "OAApplierCheckArguments": (_ApplierCheckArguments, [("usage", "Use", "never"), ]),
     "OAApplierApplyArguments": (_ApplierApplyArguments, [("usage", "Use", "never"), ]),
+    "OASecretReaderReadArguments": (_SecretReaderReadArguments, [("name", "string", "never"), ]),
+    "OAScopedHolderStoreArguments": (_ScopedHolderStoreArguments, [("expected_revision", "string", "never"), ("registration", "Registration", "never"), ]),
+    "OAScopedHolderRotateArguments": (_ScopedHolderRotateArguments, [("expected_revision", "string", "never"), ("rotation", "Rotation", "never"), ]),
+    "OAScopedHolderRevokeArguments": (_ScopedHolderRevokeArguments, [("expected_revision", "string", "never"), ("name", "string", "never"), ]),
+    "OAScopedHolderMetadataArguments": (_ScopedHolderMetadataArguments, [("name", "string", "never"), ]),
+    "OAScopedApplierCheckArguments": (_ScopedApplierCheckArguments, [("usage", "Use", "never"), ]),
+    "OAScopedApplierApplyArguments": (_ScopedApplierApplyArguments, [("usage", "Use", "never"), ]),
     "OAServiceFrame": (_ServiceFrame, [("version", "i32", "never"), ("service", "string", "never"), ("method", "string", "never"), ("arguments", "json", "never"), ]),
     "OAServiceReply": (_ServiceReply, [("version", "i32", "never"), ("service", "string", "never"), ("method", "string", "never"), ("ok", "bool", "never"), ("payload", "json", "never"), ]),
     "OAServiceError": (_ServiceError, [("code", "string", "never"), ("message", "string", "never"), ]),
@@ -3649,6 +4806,13 @@ _SERVICE_RECORDS = {
     "OAHolderAuditResult": (_HolderAuditResult, [("value", "AuditPage", "never"), ]),
     "OAApplierCheckResult": (_ApplierCheckResult, [("value", "CheckResult", "never"), ]),
     "OAApplierApplyResult": (_ApplierApplyResult, [("value", "ApplyResult", "never"), ]),
+    "OASecretReaderReadResult": (_SecretReaderReadResult, [("value", "SecretReadResult", "never"), ]),
+    "OAScopedHolderStoreResult": (_ScopedHolderStoreResult, [("value", "StoreResult", "never"), ]),
+    "OAScopedHolderRotateResult": (_ScopedHolderRotateResult, [("value", "RotateResult", "never"), ]),
+    "OAScopedHolderRevokeResult": (_ScopedHolderRevokeResult, [("value", "RevokeResult", "never"), ]),
+    "OAScopedHolderMetadataResult": (_ScopedHolderMetadataResult, [("value", "MetadataReadResult", "never"), ]),
+    "OAScopedApplierCheckResult": (_ScopedApplierCheckResult, [("value", "CheckResult", "never"), ]),
+    "OAScopedApplierApplyResult": (_ScopedApplierApplyResult, [("value", "ApplyResult", "never"), ]),
 }
 
 
@@ -3816,3 +4980,1004 @@ class ApplierClient(Applier):
         _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/applier@1", "Apply")
         _result = _service_decode(_read_oa_applier_apply_result, _payload, 1)
         return _result.value
+
+
+class SecretReader:
+    """Separately selected requester-facing raw value disclosure. Old Apply,
+    metadata and manage permissions confer no Read. Nil scoped policy
+    configuration or unavailable native Program proof refuses access. Every call
+    reloads the current slot and checks expiry/membership and current authority;
+    every forbidden caller receives no record state. This interface changes no
+    legacy profile's granted operation set."""
+
+    def read(self, name: str) -> SecretReadResult:
+        """Read one current saved application secret for the native Program-bound
+        same-account requester. No caller-supplied
+        subject/recipient/consumer/target is accepted. Requires secret.read
+        under named-secret@1. Missing permission may admit an exact structured
+        permission request; the original call remains refused. No value is
+        cached across calls, and no failed/uncertain call is automatically
+        retried."""
+        raise NotImplementedError
+
+
+class SecretReaderClient(SecretReader):
+    """Calls abstraction.credentials/reader@1 through a transport that exchanges frames."""
+
+    def __init__(self, transport):
+        self._transport = transport
+
+    def read(self, name: str) -> SecretReadResult:
+        _service_check("string", name)
+        _args = _SecretReaderReadArguments()
+        _args.name = name
+        _arguments = _service_encode(_write_oa_secret_reader_read_arguments, _args, 1)
+        _service_decode(_read_oa_secret_reader_read_arguments, _arguments, 1)
+        _request = _service_request("abstraction.credentials/reader@1", "Read", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/reader@1", "Read")
+        _result = _service_decode(_read_oa_secret_reader_read_result, _payload, 1)
+        return _result.value
+
+
+class ScopedHolder:
+    """Name-scoped management of saved application credentials accepted by Store.
+    Native subject is bound at the receiver. Each method has its distinct
+    permission and final quiet rights/identity check after waits inside the
+    holder edit. Runtime local-key@1 is excluded. Explicit overlapping
+    legacy/typed blocks are enforced by the shared Rights compatibility owner;
+    permits stay profile-specific. Name permits follow current/recreated slots.
+    No permission-administration, enumeration or raw Read authority is implied."""
+
+    def store(self, expected_revision: str, registration: Registration) -> StoreResult:
+        """Conditionally create one name under secret.create/named-secret@1. Reuses
+        Store's bounds, persistence and expected-revision owner. Both
+        unsupported input kind and an existing/tombstoned excluded
+        runtime-managed slot return unsupported_kind without current
+        metadata/revision, before ordinary conflict handling."""
+        raise NotImplementedError
+
+    def rotate(self, expected_revision: str, rotation: Rotation) -> RotateResult:
+        """Conditionally rotate one saved app name under
+        secret.rotate/named-secret@1. Kind/scope stay unchanged. Reloaded
+        excluded membership reads forbidden without current/revision; no bytes
+        are written. Stale record revisions retain ordinary conditional conflict
+        semantics."""
+        raise NotImplementedError
+
+    def revoke(self, expected_revision: str, name: str) -> RevokeResult:
+        """Conditionally revoke one saved app name under
+        secret.revoke/named-secret@1. Reloaded excluded membership reads
+        forbidden without revision; no bytes are destroyed. Current
+        tombstone/expiry/revision rules retain their owner."""
+        raise NotImplementedError
+
+    def metadata(self, name: str) -> MetadataReadResult:
+        """Inspect one saved app name under secret.metadata.read/named-secret@1,
+        after native recipient and permission checks. Enumerates no names,
+        returns no values and admits no account List/Audit authority."""
+        raise NotImplementedError
+
+
+class ScopedHolderClient(ScopedHolder):
+    """Calls abstraction.credentials/holder@2 through a transport that exchanges frames."""
+
+    def __init__(self, transport):
+        self._transport = transport
+
+    def store(self, expected_revision: str, registration: Registration) -> StoreResult:
+        _service_check("string", expected_revision)
+        _service_check("Registration", registration)
+        _args = _ScopedHolderStoreArguments()
+        _args.expected_revision = expected_revision
+        _args.registration = registration
+        _arguments = _service_encode(_write_oa_scoped_holder_store_arguments, _args, 1)
+        _service_decode(_read_oa_scoped_holder_store_arguments, _arguments, 1)
+        _request = _service_request("abstraction.credentials/holder@2", "Store", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/holder@2", "Store")
+        _result = _service_decode(_read_oa_scoped_holder_store_result, _payload, 1)
+        return _result.value
+
+    def rotate(self, expected_revision: str, rotation: Rotation) -> RotateResult:
+        _service_check("string", expected_revision)
+        _service_check("Rotation", rotation)
+        _args = _ScopedHolderRotateArguments()
+        _args.expected_revision = expected_revision
+        _args.rotation = rotation
+        _arguments = _service_encode(_write_oa_scoped_holder_rotate_arguments, _args, 1)
+        _service_decode(_read_oa_scoped_holder_rotate_arguments, _arguments, 1)
+        _request = _service_request("abstraction.credentials/holder@2", "Rotate", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/holder@2", "Rotate")
+        _result = _service_decode(_read_oa_scoped_holder_rotate_result, _payload, 1)
+        return _result.value
+
+    def revoke(self, expected_revision: str, name: str) -> RevokeResult:
+        _service_check("string", expected_revision)
+        _service_check("string", name)
+        _args = _ScopedHolderRevokeArguments()
+        _args.expected_revision = expected_revision
+        _args.name = name
+        _arguments = _service_encode(_write_oa_scoped_holder_revoke_arguments, _args, 1)
+        _service_decode(_read_oa_scoped_holder_revoke_arguments, _arguments, 1)
+        _request = _service_request("abstraction.credentials/holder@2", "Revoke", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/holder@2", "Revoke")
+        _result = _service_decode(_read_oa_scoped_holder_revoke_result, _payload, 1)
+        return _result.value
+
+    def metadata(self, name: str) -> MetadataReadResult:
+        _service_check("string", name)
+        _args = _ScopedHolderMetadataArguments()
+        _args.name = name
+        _arguments = _service_encode(_write_oa_scoped_holder_metadata_arguments, _args, 1)
+        _service_decode(_read_oa_scoped_holder_metadata_arguments, _arguments, 1)
+        _request = _service_request("abstraction.credentials/holder@2", "Metadata", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/holder@2", "Metadata")
+        _result = _service_decode(_read_oa_scoped_holder_metadata_result, _payload, 1)
+        return _result.value
+
+
+class ScopedApplier:
+    """Explicit selector-aware service-mediated Use for the saved-app-secret
+    collection. Old applier@1 requests retain their selected authority route;
+    current explicit equivalent blocks apply through the shared Rights owner.
+    Missing scoped policy configuration is unavailable. Runtime-managed keys
+    read unsupported_kind. All support is profile-specific and disclosed; Apply
+    conveys no raw requester Read or management authority."""
+
+    def check(self, usage: Use) -> CheckResult:
+        """Check one use through the explicit named-use@2 selector route; no secret
+        is read. Same designated enforcer, bound subject, current
+        saved-app-secret membership, consumer/target and expiry checks as Apply."""
+        raise NotImplementedError
+
+    def apply(self, usage: Use) -> ApplyResult:
+        """Apply one saved app secret through the explicit named-use@2 route. Only
+        a designated receiving enforcer may assert the submitting subject.
+        Recheck every request, redirect and resumed range; headers leave only to
+        that service. No fallback to the legacy named-use@1 route."""
+        raise NotImplementedError
+
+
+class ScopedApplierClient(ScopedApplier):
+    """Calls abstraction.credentials/applier@2 through a transport that exchanges frames."""
+
+    def __init__(self, transport):
+        self._transport = transport
+
+    def check(self, usage: Use) -> CheckResult:
+        _service_check("Use", usage)
+        _args = _ScopedApplierCheckArguments()
+        _args.usage = usage
+        _arguments = _service_encode(_write_oa_scoped_applier_check_arguments, _args, 1)
+        _service_decode(_read_oa_scoped_applier_check_arguments, _arguments, 1)
+        _request = _service_request("abstraction.credentials/applier@2", "Check", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/applier@2", "Check")
+        _result = _service_decode(_read_oa_scoped_applier_check_result, _payload, 1)
+        return _result.value
+
+    def apply(self, usage: Use) -> ApplyResult:
+        _service_check("Use", usage)
+        _args = _ScopedApplierApplyArguments()
+        _args.usage = usage
+        _arguments = _service_encode(_write_oa_scoped_applier_apply_arguments, _args, 1)
+        _service_decode(_read_oa_scoped_applier_apply_arguments, _arguments, 1)
+        _request = _service_request("abstraction.credentials/applier@2", "Apply", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/applier@2", "Apply")
+        _result = _service_decode(_read_oa_scoped_applier_apply_result, _payload, 1)
+        return _result.value
+
+
+_NAMED_IMPORTED = {}
+
+_NAMED_RECORDS = {
+    "Subject": (Subject, [("account", "string", "never"), ("program", "string", "never"), ]),
+    "Scope": (Scope, [("targets", "list<string>", "never"), ("consumers", "list<string>", "never"), ]),
+    "Metadata": (Metadata, [("name", "string", "never"), ("kind", "string", "never"), ("revision", "string", "never"), ("state", "enum", "never"), ("scope", "Scope", "never"), ("registered_by", "Subject", "never"), ("registered", "string", "never"), ("expires", "string", "absent"), ("header", "string", "absent"), ("last_applied", "string", "absent"), ]),
+    "Registration": (Registration, [("name", "string", "never"), ("kind", "string", "never"), ("scope", "Scope", "never"), ("expires", "string", "absent"), ("header", "string", "absent"), ("secret", "binary", "never"), ]),
+    "Rotation": (Rotation, [("name", "string", "never"), ("expires", "string", "absent"), ("secret", "binary", "never"), ]),
+    "StoreResult": (StoreResult, [("outcome", "enum", "never"), ("revision", "string", "never"), ("current", "Metadata", "absent"), ]),
+    "RotateResult": (RotateResult, [("outcome", "enum", "never"), ("revision", "string", "never"), ("current", "Metadata", "absent"), ]),
+    "RevokeResult": (RevokeResult, [("outcome", "enum", "never"), ("revision", "string", "never"), ]),
+    "Limits": (Limits, [("max_credentials", "i64", "never"), ("max_secret_bytes", "i64", "never"), ("tombstone_retention_ms", "i64", "never"), ("audit_retention_ms", "i64", "never"), ("audit_capacity", "i64", "never"), ("secure_store", "enum", "never"), ("supported_kinds", "list<string>", "never"), ]),
+    "MetadataPage": (MetadataPage, [("outcome", "enum", "never"), ("limits", "Limits", "never"), ("records", "list<Metadata>", "never"), ("next", "string", "never"), ("complete", "bool", "never"), ]),
+    "AuditEntry": (AuditEntry, [("sequence", "i64", "never"), ("time", "string", "never"), ("event", "string", "never"), ("name", "string", "never"), ("revision", "string", "never"), ("subject", "Subject", "absent"), ("consumer", "string", "absent"), ("target", "string", "absent"), ("outcome", "string", "absent"), ]),
+    "AuditPage": (AuditPage, [("outcome", "enum", "never"), ("entries", "list<AuditEntry>", "never"), ("next", "string", "never"), ("at_end", "bool", "never"), ]),
+    "Use": (Use, [("subject", "Subject", "never"), ("consumer", "string", "never"), ("name", "string", "never"), ("target", "string", "never"), ("challenge", "string", "absent"), ]),
+    "CredentialResource": (CredentialResource, [("name", "string", "never"), ]),
+    "CheckResult": (CheckResult, [("outcome", "enum", "never"), ("revision", "string", "never"), ]),
+    "ApplyResult": (ApplyResult, [("outcome", "enum", "never"), ("revision", "string", "never"), ("headers", "map<string,string>", "zero"), ]),
+    "SecretValue": (SecretValue, [("name", "string", "never"), ("revision", "string", "never"), ("secret", "binary", "never"), ]),
+    "SecretReadResult": (SecretReadResult, [("outcome", "enum", "never"), ("value", "SecretValue", "absent"), ]),
+    "MetadataReadResult": (MetadataReadResult, [("outcome", "enum", "never"), ("current", "Metadata", "absent"), ]),
+}
+
+
+def _named_check(kind, value, depth=0, limit=_DEPTH_LIMIT):
+    # Python coercions must not silently change typed service arguments.
+    if depth >= limit and (kind.startswith(("list<", "map<")) or kind in _NAMED_RECORDS):
+        raise Refusal("depth_exceeded", 0)
+    if kind == "binary":
+        valid = type(value) is bytes
+    elif kind == "string":
+        valid = type(value) is str
+    elif kind == "enum":
+        valid = value is None or isinstance(value, str)
+    elif kind in ("i32", "i64"):
+        valid = type(value) is int
+        if valid:
+            limit = 1 << (31 if kind == "i32" else 63)
+            if not -limit <= value < limit:
+                raise Refusal("number_spelling", 0)
+    elif kind == "bool":
+        valid = type(value) is bool
+    elif kind == "json":
+        valid = isinstance(value, (str, bytes, bytearray, memoryview))
+    elif kind.startswith("list<"):
+        valid = type(value) is list
+        if valid:
+            for item in value:
+                _named_check(kind[5:-1], item, depth + 1, limit)
+    elif kind.startswith("map<string,"):
+        valid = type(value) is dict
+        if valid:
+            for key, item in value.items():
+                _named_check("string", key, depth + 1, limit)
+                _named_check(kind[11:-1], item, depth + 1, limit)
+    elif kind in _NAMED_IMPORTED:
+        cls, check = _NAMED_IMPORTED[kind]
+        valid = isinstance(value, cls)
+        if valid:
+            check(value, depth, limit)
+    else:
+        cls, fields = _NAMED_RECORDS[kind]
+        valid = isinstance(value, cls)
+        if valid:
+            for name, field_kind, omit in fields:
+                if not hasattr(value, name):
+                    raise Refusal("missing_field", 0)
+                item = getattr(value, name)
+                if omit == "absent" and item is None:
+                    continue
+                _named_check(field_kind, item, depth + 1, limit)
+    if not valid:
+        raise Refusal("wrong_type", 0)
+
+
+def _check_subject(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("Subject", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_scope(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("Scope", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_metadata(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("Metadata", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_registration(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("Registration", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_rotation(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("Rotation", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_store_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("StoreResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_rotate_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("RotateResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_revoke_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("RevokeResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_limits(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("Limits", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_metadata_page(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("MetadataPage", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_audit_entry(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("AuditEntry", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_audit_page(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("AuditPage", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_use(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("Use", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_credential_resource(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("CredentialResource", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_check_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("CheckResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_apply_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("ApplyResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_secret_value(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("SecretValue", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_secret_read_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("SecretReadResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_metadata_read_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("MetadataReadResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _decode_subject_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_subject(r)
+    return v, r.pos
+
+
+def _encode_subject_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_subject(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_subject(out, v, depth)
+    _decode_subject_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_subject(v):
+    return _encode_subject_at(v, 0) + "\n".encode()
+
+
+def decode_subject(data):
+    v, n = _decode_subject_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_scope_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_scope(r)
+    return v, r.pos
+
+
+def _encode_scope_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_scope(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_scope(out, v, depth)
+    _decode_scope_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_scope(v):
+    return _encode_scope_at(v, 0) + "\n".encode()
+
+
+def decode_scope(data):
+    v, n = _decode_scope_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_metadata_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_metadata(r)
+    return v, r.pos
+
+
+def _encode_metadata_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_metadata(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_metadata(out, v, depth)
+    _decode_metadata_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_metadata(v):
+    return _encode_metadata_at(v, 0) + "\n".encode()
+
+
+def decode_metadata(data):
+    v, n = _decode_metadata_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_registration_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_registration(r)
+    return v, r.pos
+
+
+def _encode_registration_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_registration(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_registration(out, v, depth)
+    _decode_registration_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_registration(v):
+    return _encode_registration_at(v, 0) + "\n".encode()
+
+
+def decode_registration(data):
+    v, n = _decode_registration_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_rotation_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_rotation(r)
+    return v, r.pos
+
+
+def _encode_rotation_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_rotation(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_rotation(out, v, depth)
+    _decode_rotation_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_rotation(v):
+    return _encode_rotation_at(v, 0) + "\n".encode()
+
+
+def decode_rotation(data):
+    v, n = _decode_rotation_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_store_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_store_result(r)
+    return v, r.pos
+
+
+def _encode_store_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_store_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_store_result(out, v, depth)
+    _decode_store_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_store_result(v):
+    return _encode_store_result_at(v, 0) + "\n".encode()
+
+
+def decode_store_result(data):
+    v, n = _decode_store_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_rotate_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_rotate_result(r)
+    return v, r.pos
+
+
+def _encode_rotate_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_rotate_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_rotate_result(out, v, depth)
+    _decode_rotate_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_rotate_result(v):
+    return _encode_rotate_result_at(v, 0) + "\n".encode()
+
+
+def decode_rotate_result(data):
+    v, n = _decode_rotate_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_revoke_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_revoke_result(r)
+    return v, r.pos
+
+
+def _encode_revoke_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_revoke_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_revoke_result(out, v, depth)
+    _decode_revoke_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_revoke_result(v):
+    return _encode_revoke_result_at(v, 0) + "\n".encode()
+
+
+def decode_revoke_result(data):
+    v, n = _decode_revoke_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_limits_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_limits(r)
+    return v, r.pos
+
+
+def _encode_limits_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_limits(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_limits(out, v, depth)
+    _decode_limits_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_limits(v):
+    return _encode_limits_at(v, 0) + "\n".encode()
+
+
+def decode_limits(data):
+    v, n = _decode_limits_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_metadata_page_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_metadata_page(r)
+    return v, r.pos
+
+
+def _encode_metadata_page_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_metadata_page(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_metadata_page(out, v, depth)
+    _decode_metadata_page_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_metadata_page(v):
+    return _encode_metadata_page_at(v, 0) + "\n".encode()
+
+
+def decode_metadata_page(data):
+    v, n = _decode_metadata_page_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_audit_entry_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_audit_entry(r)
+    return v, r.pos
+
+
+def _encode_audit_entry_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_audit_entry(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_audit_entry(out, v, depth)
+    _decode_audit_entry_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_audit_entry(v):
+    return _encode_audit_entry_at(v, 0) + "\n".encode()
+
+
+def decode_audit_entry(data):
+    v, n = _decode_audit_entry_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_audit_page_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_audit_page(r)
+    return v, r.pos
+
+
+def _encode_audit_page_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_audit_page(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_audit_page(out, v, depth)
+    _decode_audit_page_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_audit_page(v):
+    return _encode_audit_page_at(v, 0) + "\n".encode()
+
+
+def decode_audit_page(data):
+    v, n = _decode_audit_page_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_use_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_use(r)
+    return v, r.pos
+
+
+def _encode_use_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_use(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_use(out, v, depth)
+    _decode_use_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_use(v):
+    return _encode_use_at(v, 0) + "\n".encode()
+
+
+def decode_use(data):
+    v, n = _decode_use_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_credential_resource_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_credential_resource(r)
+    return v, r.pos
+
+
+def _encode_credential_resource_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_credential_resource(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_credential_resource(out, v, depth)
+    _decode_credential_resource_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_credential_resource(v):
+    return _encode_credential_resource_at(v, 0) + "\n".encode()
+
+
+def decode_credential_resource(data):
+    v, n = _decode_credential_resource_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_check_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_check_result(r)
+    return v, r.pos
+
+
+def _encode_check_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_check_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_check_result(out, v, depth)
+    _decode_check_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_check_result(v):
+    return _encode_check_result_at(v, 0) + "\n".encode()
+
+
+def decode_check_result(data):
+    v, n = _decode_check_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_apply_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_apply_result(r)
+    return v, r.pos
+
+
+def _encode_apply_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_apply_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_apply_result(out, v, depth)
+    _decode_apply_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_apply_result(v):
+    return _encode_apply_result_at(v, 0) + "\n".encode()
+
+
+def decode_apply_result(data):
+    v, n = _decode_apply_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_secret_value_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_secret_value(r)
+    return v, r.pos
+
+
+def _encode_secret_value_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_secret_value(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_secret_value(out, v, depth)
+    _decode_secret_value_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_secret_value(v):
+    return _encode_secret_value_at(v, 0) + "\n".encode()
+
+
+def decode_secret_value(data):
+    v, n = _decode_secret_value_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_secret_read_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_secret_read_result(r)
+    return v, r.pos
+
+
+def _encode_secret_read_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_secret_read_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_secret_read_result(out, v, depth)
+    _decode_secret_read_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_secret_read_result(v):
+    return _encode_secret_read_result_at(v, 0) + "\n".encode()
+
+
+def decode_secret_read_result(data):
+    v, n = _decode_secret_read_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_metadata_read_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_metadata_read_result(r)
+    return v, r.pos
+
+
+def _encode_metadata_read_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_metadata_read_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_metadata_read_result(out, v, depth)
+    _decode_metadata_read_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_metadata_read_result(v):
+    return _encode_metadata_read_result_at(v, 0) + "\n".encode()
+
+
+def decode_metadata_read_result(data):
+    v, n = _decode_metadata_read_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v

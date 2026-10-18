@@ -1,0 +1,310 @@
+{
+  "format": "openabstractions-rights@1",
+  "owner": "abstraction.credentials",
+  "generated": "Do not edit. Run rights-catalogue --write from the existing compiled catalogue.",
+  "source": "github.com/openabstractions/abstraction-facade/go/grants",
+  "availability": "Compiled catalogue reference: served and selector support use the named receiving-service context. Connected-runtime discovery supplies current availability. Facade Applications is experimental. Definitions grant no access.",
+  "compiled_receivers": {
+    "credentials": true,
+    "application_logs": true
+  },
+  "definitions": [
+    {
+      "definition": {
+        "action": "abstraction.credentials/apply",
+        "owner_contract": "abstraction.credentials/applier@1",
+        "operations": [
+          "abstraction.credentials/applier@1#Check",
+          "abstraction.credentials/applier@1#Apply"
+        ],
+        "resource_profile": "abstraction.credentials/named-use@1",
+        "resource_type": "abstraction.credentials.api.CredentialResource",
+        "enforced_by": [
+          "abstraction.credentials/applier@1"
+        ],
+        "disclosure": "Use a named credential for one request through a designated service to the currently registered hosts and descendant subdomains. Check reads no secret; Apply gives headers only to the designated service.",
+        "lifecycle": "One account-owned credential name slot. The grant follows rotation and a recreated registration with its current hosts/consumers. It grants no holder management and freezes no current restrictions.",
+        "first_use": "exact",
+        "served": true
+      },
+      "label": "abstraction.credentials/apply",
+      "supported_selectors": [],
+      "first_use_selectors": [],
+      "collection": "One account-owned credential name slot. The grant follows rotation and a recreated registration with its current hosts/consumers. It grants no holder management and freezes no current restrictions.",
+      "all_effect": "",
+      "request_type": "abstraction.credentials.api.CredentialResource"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/apply",
+        "owner_contract": "abstraction.credentials/applier@2",
+        "operations": [
+          "abstraction.credentials/applier@2#Check",
+          "abstraction.credentials/applier@2#Apply"
+        ],
+        "resource_profile": "abstraction.credentials/named-use@2",
+        "resource_type": "abstraction.credentials.api.CredentialResource",
+        "enforced_by": [
+          "abstraction.credentials/applier@2"
+        ],
+        "disclosure": "Use through a designated service under current hosts and consumer restrictions. Gives headers to the designated service; supplies no raw value to the requesting app.",
+        "lifecycle": "One account-owned saved app secret name slot. Rotation and a recreated user-stored registration keep the target name. Runtime-managed local-key@1 records are excluded.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "Use",
+      "supported_selectors": [
+        "one",
+        "all"
+      ],
+      "first_use_selectors": [
+        "one",
+        "all"
+      ],
+      "collection": "abstraction.credentials/saved-app-secrets@1",
+      "all_effect": "All current and future saved app secrets in this receiving account and runtime. Includes supported user-stored credentials; excludes runtime-managed local keys. Grants only this defined operation.",
+      "request_type": "abstraction.credentials.api.CredentialResource"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/holder.manage",
+        "owner_contract": "abstraction.credentials/holder@1",
+        "operations": [
+          "abstraction.credentials/holder@1#Store",
+          "abstraction.credentials/holder@1#Rotate",
+          "abstraction.credentials/holder@1#Revoke"
+        ],
+        "resource_profile": "abstraction.rights/legacy-exact-string@1",
+        "resource_type": "string (legacy exact resource)",
+        "enforced_by": [
+          "abstraction.credentials/holder@1"
+        ],
+        "disclosure": "Store/replace/destroy secure-store bytes; no bytes read back.",
+        "lifecycle": "Full registration/rotation/revocation of account credentials, including future names.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "abstraction.credentials/holder.manage",
+      "supported_selectors": [],
+      "first_use_selectors": [],
+      "collection": "Full registration/rotation/revocation of account credentials, including future names.",
+      "all_effect": "",
+      "request_type": "string (legacy exact resource)"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/holder.read",
+        "owner_contract": "abstraction.credentials/holder@1",
+        "operations": [
+          "abstraction.credentials/holder@1#List",
+          "abstraction.credentials/holder@1#Audit"
+        ],
+        "resource_profile": "abstraction.rights/legacy-exact-string@1",
+        "resource_type": "string (legacy exact resource)",
+        "enforced_by": [
+          "abstraction.credentials/holder@1"
+        ],
+        "disclosure": "Enumerate metadata and audit; no secret bytes returned.",
+        "lifecycle": "All receiving account credential metadata/audit; future registered names included.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "abstraction.credentials/holder.read",
+      "supported_selectors": [],
+      "first_use_selectors": [],
+      "collection": "All receiving account credential metadata/audit; future registered names included.",
+      "all_effect": "",
+      "request_type": "string (legacy exact resource)"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/secret.create",
+        "owner_contract": "abstraction.credentials/holder@2",
+        "operations": [
+          "abstraction.credentials/holder@2#Store"
+        ],
+        "resource_profile": "abstraction.credentials/named-secret@1",
+        "resource_type": "abstraction.credentials.api.CredentialResource",
+        "enforced_by": [
+          "abstraction.credentials/holder@2"
+        ],
+        "disclosure": "Store one saved app secret in a new name slot with its metadata and current restrictions. An existing slot conflicts; Rotate replaces the value.",
+        "lifecycle": "One account-owned saved app secret name slot. Rotation and a recreated user-stored registration keep the target name. Runtime-managed local-key@1 records are excluded.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "Create",
+      "supported_selectors": [
+        "one",
+        "all"
+      ],
+      "first_use_selectors": [
+        "one",
+        "all"
+      ],
+      "collection": "abstraction.credentials/saved-app-secrets@1",
+      "all_effect": "All current and future saved app secrets in this receiving account and runtime. Includes supported user-stored credentials; excludes runtime-managed local keys. Grants only this defined operation.",
+      "request_type": "abstraction.credentials.api.CredentialResource"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/secret.metadata.read",
+        "owner_contract": "abstraction.credentials/holder@2",
+        "operations": [
+          "abstraction.credentials/holder@2#Metadata"
+        ],
+        "resource_profile": "abstraction.credentials/named-secret@1",
+        "resource_type": "abstraction.credentials.api.CredentialResource",
+        "enforced_by": [
+          "abstraction.credentials/holder@2"
+        ],
+        "disclosure": "Inspect metadata of one known saved app secret name. Does not enumerate unknown names or disclose its value; account List and Audit have separate legacy admission.",
+        "lifecycle": "One account-owned saved app secret name slot. Rotation and a recreated user-stored registration keep the target name. Runtime-managed local-key@1 records are excluded.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "Read named metadata",
+      "supported_selectors": [
+        "one",
+        "all"
+      ],
+      "first_use_selectors": [
+        "one",
+        "all"
+      ],
+      "collection": "abstraction.credentials/saved-app-secrets@1",
+      "all_effect": "All current and future saved app secrets in this receiving account and runtime. Includes supported user-stored credentials; excludes runtime-managed local keys. Grants only this defined operation.",
+      "request_type": "abstraction.credentials.api.CredentialResource"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/secret.read",
+        "owner_contract": "abstraction.credentials/reader@1",
+        "operations": [
+          "abstraction.credentials/reader@1#Read"
+        ],
+        "resource_profile": "abstraction.credentials/named-secret@1",
+        "resource_type": "abstraction.credentials.api.CredentialResource",
+        "enforced_by": [
+          "abstraction.credentials/reader@1"
+        ],
+        "disclosure": "Disclose the complete saved secret value to this requesting app. The app can export, copy, or use it elsewhere; current Use host and consumer restrictions do not constrain this disclosure.",
+        "lifecycle": "One account-owned saved app secret name slot. Rotation and a recreated user-stored registration keep the target name. Runtime-managed local-key@1 records are excluded.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "Read secret value",
+      "supported_selectors": [
+        "one",
+        "all"
+      ],
+      "first_use_selectors": [
+        "one",
+        "all"
+      ],
+      "collection": "abstraction.credentials/saved-app-secrets@1",
+      "all_effect": "All current and future saved app secrets in this receiving account and runtime. Includes supported user-stored credentials; excludes runtime-managed local keys. Grants only this defined operation.",
+      "request_type": "abstraction.credentials.api.CredentialResource"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/secret.revoke",
+        "owner_contract": "abstraction.credentials/holder@2",
+        "operations": [
+          "abstraction.credentials/holder@2#Revoke"
+        ],
+        "resource_profile": "abstraction.credentials/named-secret@1",
+        "resource_type": "abstraction.credentials.api.CredentialResource",
+        "enforced_by": [
+          "abstraction.credentials/holder@2"
+        ],
+        "disclosure": "Destroy one saved app secret value and retain revoked metadata as a tombstone until retention removes it.",
+        "lifecycle": "One account-owned saved app secret name slot. Rotation and a recreated user-stored registration keep the target name. Runtime-managed local-key@1 records are excluded.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "Delete",
+      "supported_selectors": [
+        "one",
+        "all"
+      ],
+      "first_use_selectors": [
+        "one",
+        "all"
+      ],
+      "collection": "abstraction.credentials/saved-app-secrets@1",
+      "all_effect": "All current and future saved app secrets in this receiving account and runtime. Includes supported user-stored credentials; excludes runtime-managed local keys. Grants only this defined operation.",
+      "request_type": "abstraction.credentials.api.CredentialResource"
+    },
+    {
+      "definition": {
+        "action": "abstraction.credentials/secret.rotate",
+        "owner_contract": "abstraction.credentials/holder@2",
+        "operations": [
+          "abstraction.credentials/holder@2#Rotate"
+        ],
+        "resource_profile": "abstraction.credentials/named-secret@1",
+        "resource_type": "abstraction.credentials.api.CredentialResource",
+        "enforced_by": [
+          "abstraction.credentials/holder@2"
+        ],
+        "disclosure": "Replace one saved app secret value while retaining its current registration.",
+        "lifecycle": "One account-owned saved app secret name slot. Rotation and a recreated user-stored registration keep the target name. Runtime-managed local-key@1 records are excluded.",
+        "first_use": "none",
+        "served": true
+      },
+      "label": "Rotate",
+      "supported_selectors": [
+        "one",
+        "all"
+      ],
+      "first_use_selectors": [
+        "one",
+        "all"
+      ],
+      "collection": "abstraction.credentials/saved-app-secrets@1",
+      "all_effect": "All current and future saved app secrets in this receiving account and runtime. Includes supported user-stored credentials; excludes runtime-managed local keys. Grants only this defined operation.",
+      "request_type": "abstraction.credentials.api.CredentialResource"
+    }
+  ],
+  "bundles": [
+    {
+      "bundle_ref": "abstraction.credentials/full-control@1",
+      "owner_contract": "abstraction.credentials/holder@2",
+      "label": "Full control v1",
+      "target_type": "abstraction.credentials.api.CredentialResource",
+      "supported_selectors": [
+        "one",
+        "all"
+      ],
+      "members": [
+        {
+          "action": "abstraction.credentials/apply",
+          "resource_profile": "abstraction.credentials/named-use@2"
+        },
+        {
+          "action": "abstraction.credentials/secret.create",
+          "resource_profile": "abstraction.credentials/named-secret@1"
+        },
+        {
+          "action": "abstraction.credentials/secret.metadata.read",
+          "resource_profile": "abstraction.credentials/named-secret@1"
+        },
+        {
+          "action": "abstraction.credentials/secret.read",
+          "resource_profile": "abstraction.credentials/named-secret@1"
+        },
+        {
+          "action": "abstraction.credentials/secret.revoke",
+          "resource_profile": "abstraction.credentials/named-secret@1"
+        },
+        {
+          "action": "abstraction.credentials/secret.rotate",
+          "resource_profile": "abstraction.credentials/named-secret@1"
+        }
+      ],
+      "disclosure": "Use, raw value Read, Create a new slot, Rotate its value, Delete its value with retained revoked metadata, and named metadata Read. Raw Read lets this app export, copy or use the secret elsewhere. This frozen six-operation list includes no enumeration, policy administration, future operation, profile version or runtime-managed local key.",
+      "definition_digest": "sha256:4d82c5348a60cecc547e5a041ec9714d3012864e50dbef837ae9515031882bed"
+    }
+  ]
+}

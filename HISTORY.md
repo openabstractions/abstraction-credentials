@@ -15,6 +15,19 @@ release gives it one.
 
 ## Design records
 
+- 2026-10-05 native Mac rights-playground requirement: add an explicit native
+  default-user login-Keychain backend for the unsandboxed receiver, while
+  preserving the existing data-protection constructor and store name. Native
+  encryption/ACLs and data-protection access groups have distinct protection
+  models. A durable runtime marker binds both the selected backend and the
+  native OS-selected Keychain path. A changed account default cannot rebind
+  existing records. Legacy unmarked state remains data protection; unknown or
+  unbound login markers stay unavailable. Native
+  success, compatible signed upgrades and different-identifier refusal require
+  executed owner-session qualification. The retained account's locked Keychain
+  and failed Developer ID key use are availability evidence, not a success
+  receipt. CRED-H/A rule ids and named Use semantics stay unchanged.
+
 - `research/vocabulary/DECISION.md` D4, D18, D19, D26, D30, D35, D45, D59,
   D60, D79 — service (not wire contract), `Scope` kept in the OAuth sense,
   per-user and machine-wide, credential manager, deprecated, the platform's
@@ -38,6 +51,41 @@ release gives it one.
   add` example names all six. `INF-W5`'s own amendment, naming which
   consumer a gateway key admits for `/v1/embeddings` and `/v1/realtime`,
   belongs to `abstraction-inference` and is not this worker's to make.
+- `research/live-runs/2026-10-02-walkthrough.md` D7 — a Panel built from
+  source was refused every question and rule unless it was copied to
+  `Abstraction Panel.exe` beside the runtime before the runtime started.
+  `CRED-H2` now states which programs are a host's operators and adds one:
+  an isolated runtime (`serve runtime --isolated <name> --state-dir <dir>`)
+  takes `--operator-program <absolute path>`, refused without `--isolated`,
+  in installed-parent mode, with the account's default state directory, or
+  for a path that names no file. The default state directory is compared by
+  file identity (`os.SameFile`), so a junction, an 8.3 short name or a
+  `\\?\` prefix is refused too. The check runs before the isolated state
+  directory is created, comparing each path's nearest existing ancestor
+  through its final resolved name, so a refusal leaves nothing behind, and
+  again by identity once it exists. A share or device state directory
+  (`\\host\share\…`, `\\?\UNC\…`, `\\.\…`) is refused before anything is
+  created, since it resolves apart from the drive path of the installed
+  folder and the check before creation could not compare the two. So is a
+  drive letter mapped to a share: its drive type is remote, or its nearest
+  existing folder resolves to a share name. It
+  catches another name for the
+  installed runtime's folder; a link planted inside the state directory, or
+  made after the check, takes a process of this account, which this
+  contract's opening paragraph leaves out of scope. Operator programs
+  compare as subject programs do everywhere else
+  (`identity.SameSubjectProgram`). The isolated runtime's rights policy and
+  credentials namespace are its own, so the named program administers
+  nothing the installed runtime holds. A runtime-launched Panel was the
+  other option; the runtime would still have to be told the Panel's path,
+  and it would add process launch to the runtime for no stronger check.
+- Review of the live-grant revocation work, 2026-10-07 — once a running
+  inference job's subject loses its rule (abstraction-inference INF-A6), the
+  job executor sends its plan's headers once more to cancel the paid
+  upstream work, and that use left no audit entry. CRED-A7 now permits that
+  one cancel and requires a `cancel` entry; `Holder.RecordCancel` appends it
+  without reading the secret, and the runtime calls it through inference's
+  `Config.CancelledWith`. Test: `go/cancel_audit_test.go`.
 
 ## Reviewed and not changed here
 

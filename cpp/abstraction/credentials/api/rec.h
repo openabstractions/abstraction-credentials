@@ -267,6 +267,100 @@ inline constexpr bool operator!=(std::string_view name, ApplyOutcome value) { re
 
 inline const std::vector<std::string> kApplyOutcomeNames = {"applied", "unknown", "expired", "revoked", "lost", "not_permitted", "target_refused", "consumer_refused", "unsupported_kind", "invalid", "forbidden", "unavailable"};
 
+enum class SecretReadOutcome : std::int32_t {
+    Read = 1,
+    Unknown = 2,
+    Expired = 3,
+    Revoked = 4,
+    Lost = 5,
+    Invalid = 6,
+    Forbidden = 7,
+    Unavailable = 8,
+    Conflict = 9,
+    UnsupportedKind = 10,
+};
+
+// The member's name on the wire; empty for a value that names no member.
+inline constexpr std::string_view wire_name(SecretReadOutcome value) {
+    switch (value) {
+        case SecretReadOutcome::Read: return "read";
+        case SecretReadOutcome::Unknown: return "unknown";
+        case SecretReadOutcome::Expired: return "expired";
+        case SecretReadOutcome::Revoked: return "revoked";
+        case SecretReadOutcome::Lost: return "lost";
+        case SecretReadOutcome::Invalid: return "invalid";
+        case SecretReadOutcome::Forbidden: return "forbidden";
+        case SecretReadOutcome::Unavailable: return "unavailable";
+        case SecretReadOutcome::Conflict: return "conflict";
+        case SecretReadOutcome::UnsupportedKind: return "unsupported_kind";
+    }
+    return {};
+}
+
+// The member a wire name spells; empty for a name this vocabulary refuses.
+inline std::optional<SecretReadOutcome> parse_secret_read_outcome(std::string_view name) {
+    if (name == "read") return SecretReadOutcome::Read;
+    if (name == "unknown") return SecretReadOutcome::Unknown;
+    if (name == "expired") return SecretReadOutcome::Expired;
+    if (name == "revoked") return SecretReadOutcome::Revoked;
+    if (name == "lost") return SecretReadOutcome::Lost;
+    if (name == "invalid") return SecretReadOutcome::Invalid;
+    if (name == "forbidden") return SecretReadOutcome::Forbidden;
+    if (name == "unavailable") return SecretReadOutcome::Unavailable;
+    if (name == "conflict") return SecretReadOutcome::Conflict;
+    if (name == "unsupported_kind") return SecretReadOutcome::UnsupportedKind;
+    return std::nullopt;
+}
+
+// A member equals its wire name, so code holding the contract's word compares directly.
+inline constexpr bool operator==(SecretReadOutcome value, std::string_view name) { return wire_name(value) == name; }
+inline constexpr bool operator!=(SecretReadOutcome value, std::string_view name) { return wire_name(value) != name; }
+inline constexpr bool operator==(std::string_view name, SecretReadOutcome value) { return wire_name(value) == name; }
+inline constexpr bool operator!=(std::string_view name, SecretReadOutcome value) { return wire_name(value) != name; }
+
+inline const std::vector<std::string> kSecretReadOutcomeNames = {"read", "unknown", "expired", "revoked", "lost", "invalid", "forbidden", "unavailable", "conflict", "unsupported_kind"};
+
+enum class MetadataReadOutcome : std::int32_t {
+    Found = 1,
+    Unknown = 2,
+    Invalid = 3,
+    Forbidden = 4,
+    Unavailable = 5,
+    Conflict = 6,
+};
+
+// The member's name on the wire; empty for a value that names no member.
+inline constexpr std::string_view wire_name(MetadataReadOutcome value) {
+    switch (value) {
+        case MetadataReadOutcome::Found: return "found";
+        case MetadataReadOutcome::Unknown: return "unknown";
+        case MetadataReadOutcome::Invalid: return "invalid";
+        case MetadataReadOutcome::Forbidden: return "forbidden";
+        case MetadataReadOutcome::Unavailable: return "unavailable";
+        case MetadataReadOutcome::Conflict: return "conflict";
+    }
+    return {};
+}
+
+// The member a wire name spells; empty for a name this vocabulary refuses.
+inline std::optional<MetadataReadOutcome> parse_metadata_read_outcome(std::string_view name) {
+    if (name == "found") return MetadataReadOutcome::Found;
+    if (name == "unknown") return MetadataReadOutcome::Unknown;
+    if (name == "invalid") return MetadataReadOutcome::Invalid;
+    if (name == "forbidden") return MetadataReadOutcome::Forbidden;
+    if (name == "unavailable") return MetadataReadOutcome::Unavailable;
+    if (name == "conflict") return MetadataReadOutcome::Conflict;
+    return std::nullopt;
+}
+
+// A member equals its wire name, so code holding the contract's word compares directly.
+inline constexpr bool operator==(MetadataReadOutcome value, std::string_view name) { return wire_name(value) == name; }
+inline constexpr bool operator!=(MetadataReadOutcome value, std::string_view name) { return wire_name(value) != name; }
+inline constexpr bool operator==(std::string_view name, MetadataReadOutcome value) { return wire_name(value) == name; }
+inline constexpr bool operator!=(std::string_view name, MetadataReadOutcome value) { return wire_name(value) != name; }
+
+inline const std::vector<std::string> kMetadataReadOutcomeNames = {"found", "unknown", "invalid", "forbidden", "unavailable", "conflict"};
+
 inline const std::vector<std::string> kServiceErrorCodeNames = {"handler_error", "invalid_result", "unknown_version", "unknown_service", "unknown_method", "wrong_mode"};
 inline constexpr std::string_view kServiceErrorCodeHandlerError = "handler_error";
 inline constexpr std::string_view kServiceErrorCodeInvalidResult = "invalid_result";
@@ -277,9 +371,9 @@ inline constexpr std::string_view kServiceErrorCodeWrongMode = "wrong_mode";
 
 inline const std::vector<std::string> kCredentialKinds = {"bearer", "header"};
 
-inline const std::vector<std::string> kResourceActions = {"abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply"};
+inline const std::vector<std::string> kResourceActions = {"abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"};
 
-inline const std::vector<std::string> kExecutionGuarantees = {"abstraction.download/credentials@1"};
+inline const std::vector<std::string> kExecutionGuarantees = {"abstraction.download/credentials@1", "abstraction.download/credentials@2"};
 
 inline const std::vector<std::string> kConsumers = {"abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"};
 
@@ -450,6 +544,21 @@ struct Use {
     std::string challenge;
 };
 
+// An account-owned credential name slot. name is 1..64 ASCII letters, digits,
+// '_', '.' or '-'; the old exact rights resource is credential:<name>.
+// Account/program bind separately at the receiving boundary. The canonical
+// generated document is the target of named-secret@1 and named-use@2, whose
+// collection is saved application credentials of kinds accepted by Store;
+// runtime local-key@1 records are excluded. named-use@1 retains its original
+// exact route. Name grants follow the current slot, including rotation and a
+// recreated registration's current restrictions. Read discloses the current
+// value to the bound requesting program under a distinct permission. Management
+// operations convey only their explicit supported effects. Every target
+// operation revalidates current membership, state and expiry after waits.
+struct CredentialResource {
+    std::string name;
+};
+
 // applied means Apply with the same Use would carry headers now. revision is
 // present for evaluated records. No secret is read for a check.
 struct CheckResult {
@@ -473,6 +582,42 @@ struct ApplyResult {
     ApplyOutcome outcome{};
     std::string revision;
     std::map<std::string, std::string> headers;
+};
+
+// Successful reader@1 response only. name is the requested canonical slot and
+// revision is the actual current record revision. secret is a fresh copy of
+// 1..4096 bytes, within the configured store's limit. The receiving application
+// owns this returned copy and clears it after use; no client/provider retains
+// or logs it. No metadata, audit, history, error, Asks record or diagnostic
+// contains the value or a derivative.
+struct SecretValue {
+    std::string name;
+    std::string revision;
+    std::vector<std::uint8_t> secret;
+};
+
+// value is present exactly for read. Every refusal has no name, revision, value
+// or derived byte data. Native recipient and explicit Read authority are
+// checked before any existence/state disclosure and again before returning
+// bytes or a state-bearing result. forbidden covers absent authority and an
+// unproven/foreign recipient. conflict means the selected policy snapshot
+// became stale; no bytes are returned. Runtime-managed local-key@1 is outside
+// this collection and reads unsupported_kind only after authorization.
+// Consumer/website restrictions constrain service-mediated Use; raw Read
+// explicitly exports the value to the requesting application.
+struct SecretReadResult {
+    SecretReadOutcome outcome{};
+    std::optional<SecretValue> value;
+};
+
+// found carries only the authorized name's current metadata, including an
+// expired/lost record or a tombstone inside retention. Other outcomes carry no
+// current or revision. This lookup supports conditional-edit reconciliation
+// without account List/Audit access. Runtime-managed records are outside the
+// collection and read forbidden.
+struct MetadataReadResult {
+    MetadataReadOutcome outcome{};
+    std::optional<Metadata> current;
 };
 
 // Codec machinery. Nothing here is API; it may change in any release.
@@ -668,6 +813,37 @@ struct OAApplierApplyArguments {
     Use usage;
 };
 
+struct OASecretReaderReadArguments {
+    std::string name;
+};
+
+struct OAScopedHolderStoreArguments {
+    std::string expected_revision;
+    Registration registration;
+};
+
+struct OAScopedHolderRotateArguments {
+    std::string expected_revision;
+    Rotation rotation;
+};
+
+struct OAScopedHolderRevokeArguments {
+    std::string expected_revision;
+    std::string name;
+};
+
+struct OAScopedHolderMetadataArguments {
+    std::string name;
+};
+
+struct OAScopedApplierCheckArguments {
+    Use usage;
+};
+
+struct OAScopedApplierApplyArguments {
+    Use usage;
+};
+
 struct OAServiceFrame {
     std::int32_t version = 0;
     std::string service;
@@ -715,6 +891,34 @@ struct OAApplierCheckResult {
 struct OAApplierApplyResult {
     ApplyResult value;
 };
+
+struct OASecretReaderReadResult {
+    SecretReadResult value;
+};
+
+struct OAScopedHolderStoreResult {
+    StoreResult value;
+};
+
+struct OAScopedHolderRotateResult {
+    RotateResult value;
+};
+
+struct OAScopedHolderRevokeResult {
+    RevokeResult value;
+};
+
+struct OAScopedHolderMetadataResult {
+    MetadataReadResult value;
+};
+
+struct OAScopedApplierCheckResult {
+    CheckResult value;
+};
+
+struct OAScopedApplierApplyResult {
+    ApplyResult value;
+};
 inline void enc_subject(std::string&, const Subject&, int);
 inline void enc_scope(std::string&, const Scope&, int);
 inline void enc_metadata(std::string&, const Metadata&, int);
@@ -728,8 +932,12 @@ inline void enc_metadata_page(std::string&, const MetadataPage&, int);
 inline void enc_audit_entry(std::string&, const AuditEntry&, int);
 inline void enc_audit_page(std::string&, const AuditPage&, int);
 inline void enc_use(std::string&, const Use&, int);
+inline void enc_credential_resource(std::string&, const CredentialResource&, int);
 inline void enc_check_result(std::string&, const CheckResult&, int);
 inline void enc_apply_result(std::string&, const ApplyResult&, int);
+inline void enc_secret_value(std::string&, const SecretValue&, int);
+inline void enc_secret_read_result(std::string&, const SecretReadResult&, int);
+inline void enc_metadata_read_result(std::string&, const MetadataReadResult&, int);
 inline void enc_oa_holder_store_arguments(std::string&, const OAHolderStoreArguments&, int);
 inline void enc_oa_holder_rotate_arguments(std::string&, const OAHolderRotateArguments&, int);
 inline void enc_oa_holder_revoke_arguments(std::string&, const OAHolderRevokeArguments&, int);
@@ -737,6 +945,13 @@ inline void enc_oa_holder_list_arguments(std::string&, const OAHolderListArgumen
 inline void enc_oa_holder_audit_arguments(std::string&, const OAHolderAuditArguments&, int);
 inline void enc_oa_applier_check_arguments(std::string&, const OAApplierCheckArguments&, int);
 inline void enc_oa_applier_apply_arguments(std::string&, const OAApplierApplyArguments&, int);
+inline void enc_oa_secret_reader_read_arguments(std::string&, const OASecretReaderReadArguments&, int);
+inline void enc_oa_scoped_holder_store_arguments(std::string&, const OAScopedHolderStoreArguments&, int);
+inline void enc_oa_scoped_holder_rotate_arguments(std::string&, const OAScopedHolderRotateArguments&, int);
+inline void enc_oa_scoped_holder_revoke_arguments(std::string&, const OAScopedHolderRevokeArguments&, int);
+inline void enc_oa_scoped_holder_metadata_arguments(std::string&, const OAScopedHolderMetadataArguments&, int);
+inline void enc_oa_scoped_applier_check_arguments(std::string&, const OAScopedApplierCheckArguments&, int);
+inline void enc_oa_scoped_applier_apply_arguments(std::string&, const OAScopedApplierApplyArguments&, int);
 inline void enc_oa_service_frame(std::string&, const OAServiceFrame&, int);
 inline void enc_oa_service_reply(std::string&, const OAServiceReply&, int);
 inline void enc_oa_service_error(std::string&, const OAServiceError&, int);
@@ -747,6 +962,13 @@ inline void enc_oa_holder_list_result(std::string&, const OAHolderListResult&, i
 inline void enc_oa_holder_audit_result(std::string&, const OAHolderAuditResult&, int);
 inline void enc_oa_applier_check_result(std::string&, const OAApplierCheckResult&, int);
 inline void enc_oa_applier_apply_result(std::string&, const OAApplierApplyResult&, int);
+inline void enc_oa_secret_reader_read_result(std::string&, const OASecretReaderReadResult&, int);
+inline void enc_oa_scoped_holder_store_result(std::string&, const OAScopedHolderStoreResult&, int);
+inline void enc_oa_scoped_holder_rotate_result(std::string&, const OAScopedHolderRotateResult&, int);
+inline void enc_oa_scoped_holder_revoke_result(std::string&, const OAScopedHolderRevokeResult&, int);
+inline void enc_oa_scoped_holder_metadata_result(std::string&, const OAScopedHolderMetadataResult&, int);
+inline void enc_oa_scoped_applier_check_result(std::string&, const OAScopedApplierCheckResult&, int);
+inline void enc_oa_scoped_applier_apply_result(std::string&, const OAScopedApplierApplyResult&, int);
 
 inline void enc_subject(std::string& out, const Subject& v, int depth) {
     out += '{';
@@ -1223,6 +1445,18 @@ inline void enc_use(std::string& out, const Use& v, int depth) {
     out += '}';
 }
 
+inline void enc_credential_resource(std::string& out, const CredentialResource& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "name");
+    out += ": ";
+    esc(out, v.name);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
 inline void enc_check_result(std::string& out, const CheckResult& v, int depth) {
     if (wire_name(v.outcome).empty()) throw Refusal("bad_enum", 0);
     out += '{';
@@ -1263,6 +1497,72 @@ inline void enc_apply_result(std::string& out, const ApplyResult& v, int depth) 
         esc(out, "headers");
         out += ": ";
         strmap(out, v.headers, depth + 1);
+    }
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_secret_value(std::string& out, const SecretValue& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "name");
+    out += ": ";
+    esc(out, v.name);
+    out += ',';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "revision");
+    out += ": ";
+    esc(out, v.revision);
+    out += ',';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "secret");
+    out += ": ";
+    esc(out, encode_binary(v.secret));
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_secret_read_result(std::string& out, const SecretReadResult& v, int depth) {
+    if (wire_name(v.outcome).empty()) throw Refusal("bad_enum", 0);
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out += ": ";
+    esc(out, std::string(wire_name(v.outcome)));
+    if (v.value.has_value()) {
+        out += ',';
+        out += '\n';
+        pad(out, depth + 1);
+        esc(out, "value");
+        out += ": ";
+        enc_secret_value(out, *v.value, depth + 1);
+    }
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_metadata_read_result(std::string& out, const MetadataReadResult& v, int depth) {
+    if (wire_name(v.outcome).empty()) throw Refusal("bad_enum", 0);
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "outcome");
+    out += ": ";
+    esc(out, std::string(wire_name(v.outcome)));
+    if (v.current.has_value()) {
+        out += ',';
+        out += '\n';
+        pad(out, depth + 1);
+        esc(out, "current");
+        out += ": ";
+        enc_metadata(out, *v.current, depth + 1);
     }
     out += '\n';
     pad(out, depth);
@@ -1372,6 +1672,108 @@ inline void enc_oa_applier_check_arguments(std::string& out, const OAApplierChec
 }
 
 inline void enc_oa_applier_apply_arguments(std::string& out, const OAApplierApplyArguments& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "usage");
+    out += ": ";
+    enc_use(out, v.usage, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_secret_reader_read_arguments(std::string& out, const OASecretReaderReadArguments& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "name");
+    out += ": ";
+    esc(out, v.name);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_store_arguments(std::string& out, const OAScopedHolderStoreArguments& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "expected_revision");
+    out += ": ";
+    esc(out, v.expected_revision);
+    out += ',';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "registration");
+    out += ": ";
+    enc_registration(out, v.registration, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_rotate_arguments(std::string& out, const OAScopedHolderRotateArguments& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "expected_revision");
+    out += ": ";
+    esc(out, v.expected_revision);
+    out += ',';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "rotation");
+    out += ": ";
+    enc_rotation(out, v.rotation, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_revoke_arguments(std::string& out, const OAScopedHolderRevokeArguments& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "expected_revision");
+    out += ": ";
+    esc(out, v.expected_revision);
+    out += ',';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "name");
+    out += ": ";
+    esc(out, v.name);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_metadata_arguments(std::string& out, const OAScopedHolderMetadataArguments& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "name");
+    out += ": ";
+    esc(out, v.name);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_applier_check_arguments(std::string& out, const OAScopedApplierCheckArguments& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "usage");
+    out += ": ";
+    enc_use(out, v.usage, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_applier_apply_arguments(std::string& out, const OAScopedApplierApplyArguments& v, int depth) {
     out += '{';
     out += '\n';
     pad(out, depth + 1);
@@ -1551,6 +1953,90 @@ inline void enc_oa_applier_apply_result(std::string& out, const OAApplierApplyRe
     out += '}';
 }
 
+inline void enc_oa_secret_reader_read_result(std::string& out, const OASecretReaderReadResult& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "value");
+    out += ": ";
+    enc_secret_read_result(out, v.value, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_store_result(std::string& out, const OAScopedHolderStoreResult& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "value");
+    out += ": ";
+    enc_store_result(out, v.value, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_rotate_result(std::string& out, const OAScopedHolderRotateResult& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "value");
+    out += ": ";
+    enc_rotate_result(out, v.value, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_revoke_result(std::string& out, const OAScopedHolderRevokeResult& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "value");
+    out += ": ";
+    enc_revoke_result(out, v.value, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_holder_metadata_result(std::string& out, const OAScopedHolderMetadataResult& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "value");
+    out += ": ";
+    enc_metadata_read_result(out, v.value, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_applier_check_result(std::string& out, const OAScopedApplierCheckResult& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "value");
+    out += ": ";
+    enc_check_result(out, v.value, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
+inline void enc_oa_scoped_applier_apply_result(std::string& out, const OAScopedApplierApplyResult& v, int depth) {
+    out += '{';
+    out += '\n';
+    pad(out, depth + 1);
+    esc(out, "value");
+    out += ": ";
+    enc_apply_result(out, v.value, depth + 1);
+    out += '\n';
+    pad(out, depth);
+    out += '}';
+}
+
 inline constexpr int kDepthLimit = 64;
 inline constexpr std::size_t kI64Digits = 19;
 
@@ -1599,6 +2085,7 @@ struct Reader {
     std::string_view buf;
     std::size_t pos = 0;
     int depth = 0;
+ int limit = kDepthLimit;
 
     [[noreturn]] void refuse(const char* word) const { throw Refusal(word, pos); }
 
@@ -1613,7 +2100,7 @@ struct Reader {
     }
 
     void enter() {
-        if (++depth > kDepthLimit) refuse("depth_exceeded");
+        if (++depth > limit) refuse("depth_exceeded");
     }
 
     std::string str() {
@@ -1993,8 +2480,12 @@ inline MetadataPage decode_metadata_page(Reader& r);
 inline AuditEntry decode_audit_entry(Reader& r);
 inline AuditPage decode_audit_page(Reader& r);
 inline Use decode_use(Reader& r);
+inline CredentialResource decode_credential_resource(Reader& r);
 inline CheckResult decode_check_result(Reader& r);
 inline ApplyResult decode_apply_result(Reader& r);
+inline SecretValue decode_secret_value(Reader& r);
+inline SecretReadResult decode_secret_read_result(Reader& r);
+inline MetadataReadResult decode_metadata_read_result(Reader& r);
 inline OAHolderStoreArguments decode_oa_holder_store_arguments(Reader& r);
 inline OAHolderRotateArguments decode_oa_holder_rotate_arguments(Reader& r);
 inline OAHolderRevokeArguments decode_oa_holder_revoke_arguments(Reader& r);
@@ -2002,6 +2493,13 @@ inline OAHolderListArguments decode_oa_holder_list_arguments(Reader& r);
 inline OAHolderAuditArguments decode_oa_holder_audit_arguments(Reader& r);
 inline OAApplierCheckArguments decode_oa_applier_check_arguments(Reader& r);
 inline OAApplierApplyArguments decode_oa_applier_apply_arguments(Reader& r);
+inline OASecretReaderReadArguments decode_oa_secret_reader_read_arguments(Reader& r);
+inline OAScopedHolderStoreArguments decode_oa_scoped_holder_store_arguments(Reader& r);
+inline OAScopedHolderRotateArguments decode_oa_scoped_holder_rotate_arguments(Reader& r);
+inline OAScopedHolderRevokeArguments decode_oa_scoped_holder_revoke_arguments(Reader& r);
+inline OAScopedHolderMetadataArguments decode_oa_scoped_holder_metadata_arguments(Reader& r);
+inline OAScopedApplierCheckArguments decode_oa_scoped_applier_check_arguments(Reader& r);
+inline OAScopedApplierApplyArguments decode_oa_scoped_applier_apply_arguments(Reader& r);
 inline OAServiceFrame decode_oa_service_frame(Reader& r);
 inline OAServiceReply decode_oa_service_reply(Reader& r);
 inline OAServiceError decode_oa_service_error(Reader& r);
@@ -2012,6 +2510,13 @@ inline OAHolderListResult decode_oa_holder_list_result(Reader& r);
 inline OAHolderAuditResult decode_oa_holder_audit_result(Reader& r);
 inline OAApplierCheckResult decode_oa_applier_check_result(Reader& r);
 inline OAApplierApplyResult decode_oa_applier_apply_result(Reader& r);
+inline OASecretReaderReadResult decode_oa_secret_reader_read_result(Reader& r);
+inline OAScopedHolderStoreResult decode_oa_scoped_holder_store_result(Reader& r);
+inline OAScopedHolderRotateResult decode_oa_scoped_holder_rotate_result(Reader& r);
+inline OAScopedHolderRevokeResult decode_oa_scoped_holder_revoke_result(Reader& r);
+inline OAScopedHolderMetadataResult decode_oa_scoped_holder_metadata_result(Reader& r);
+inline OAScopedApplierCheckResult decode_oa_scoped_applier_check_result(Reader& r);
+inline OAScopedApplierApplyResult decode_oa_scoped_applier_apply_result(Reader& r);
 
 inline Subject decode_subject(Reader& r) {
     if (r.at() != '{') r.refuse("wrong_type");
@@ -2690,6 +3195,41 @@ inline Use decode_use(Reader& r) {
     return v;
 }
 
+inline CredentialResource decode_credential_resource(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    CredentialResource v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "name") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.name = r.str();
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
 inline CheckResult decode_check_result(Reader& r) {
     if (r.at() != '{') r.refuse("wrong_type");
     r.enter();
@@ -2778,6 +3318,139 @@ inline ApplyResult decode_apply_result(Reader& r) {
     if ((seen & 3u) != 3u) r.refuse("missing_field");
     if (wire_outcome) {
         const auto parsed = parse_apply_outcome(*wire_outcome);
+        if (!parsed) r.refuse("bad_enum");
+        v.outcome = *parsed;
+    }
+    return v;
+}
+
+inline SecretValue decode_secret_value(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    SecretValue v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "name") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.name = r.str();
+            } else if (key == "revision") {
+                if (seen & 2u) r.refuse("duplicate_field");
+                seen |= 2u;
+                v.revision = r.str();
+            } else if (key == "secret") {
+                if (seen & 4u) r.refuse("duplicate_field");
+                seen |= 4u;
+                v.secret = decode_binary(r.str());
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 7u) != 7u) r.refuse("missing_field");
+    return v;
+}
+
+inline SecretReadResult decode_secret_read_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    SecretReadResult v;
+    std::optional<std::string> wire_outcome;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "outcome") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                wire_outcome = r.str();
+            } else if (key == "value") {
+                if (seen & 2u) r.refuse("duplicate_field");
+                seen |= 2u;
+                v.value = decode_secret_value(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    if (wire_outcome) {
+        const auto parsed = parse_secret_read_outcome(*wire_outcome);
+        if (!parsed) r.refuse("bad_enum");
+        v.outcome = *parsed;
+    }
+    return v;
+}
+
+inline MetadataReadResult decode_metadata_read_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    MetadataReadResult v;
+    std::optional<std::string> wire_outcome;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "outcome") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                wire_outcome = r.str();
+            } else if (key == "current") {
+                if (seen & 2u) r.refuse("duplicate_field");
+                seen |= 2u;
+                v.current = decode_metadata(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    if (wire_outcome) {
+        const auto parsed = parse_metadata_read_outcome(*wire_outcome);
         if (!parsed) r.refuse("bad_enum");
         v.outcome = *parsed;
     }
@@ -3019,6 +3692,263 @@ inline OAApplierApplyArguments decode_oa_applier_apply_arguments(Reader& r) {
     r.enter();
     ++r.pos;
     OAApplierApplyArguments v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "usage") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.usage = decode_use(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OASecretReaderReadArguments decode_oa_secret_reader_read_arguments(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OASecretReaderReadArguments v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "name") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.name = r.str();
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderStoreArguments decode_oa_scoped_holder_store_arguments(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderStoreArguments v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "expected_revision") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.expected_revision = r.str();
+            } else if (key == "registration") {
+                if (seen & 2u) r.refuse("duplicate_field");
+                seen |= 2u;
+                v.registration = decode_registration(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 3u) != 3u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderRotateArguments decode_oa_scoped_holder_rotate_arguments(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderRotateArguments v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "expected_revision") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.expected_revision = r.str();
+            } else if (key == "rotation") {
+                if (seen & 2u) r.refuse("duplicate_field");
+                seen |= 2u;
+                v.rotation = decode_rotation(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 3u) != 3u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderRevokeArguments decode_oa_scoped_holder_revoke_arguments(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderRevokeArguments v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "expected_revision") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.expected_revision = r.str();
+            } else if (key == "name") {
+                if (seen & 2u) r.refuse("duplicate_field");
+                seen |= 2u;
+                v.name = r.str();
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 3u) != 3u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderMetadataArguments decode_oa_scoped_holder_metadata_arguments(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderMetadataArguments v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "name") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.name = r.str();
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedApplierCheckArguments decode_oa_scoped_applier_check_arguments(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedApplierCheckArguments v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "usage") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.usage = decode_use(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedApplierApplyArguments decode_oa_scoped_applier_apply_arguments(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedApplierApplyArguments v;
     std::uint32_t seen = 0;
     r.skip_ws();
     if (r.at() != '}') {
@@ -3431,6 +4361,251 @@ inline OAApplierApplyResult decode_oa_applier_apply_result(Reader& r) {
     return v;
 }
 
+inline OASecretReaderReadResult decode_oa_secret_reader_read_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OASecretReaderReadResult v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "value") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.value = decode_secret_read_result(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderStoreResult decode_oa_scoped_holder_store_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderStoreResult v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "value") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.value = decode_store_result(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderRotateResult decode_oa_scoped_holder_rotate_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderRotateResult v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "value") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.value = decode_rotate_result(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderRevokeResult decode_oa_scoped_holder_revoke_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderRevokeResult v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "value") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.value = decode_revoke_result(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedHolderMetadataResult decode_oa_scoped_holder_metadata_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedHolderMetadataResult v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "value") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.value = decode_metadata_read_result(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedApplierCheckResult decode_oa_scoped_applier_check_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedApplierCheckResult v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "value") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.value = decode_check_result(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
+inline OAScopedApplierApplyResult decode_oa_scoped_applier_apply_result(Reader& r) {
+    if (r.at() != '{') r.refuse("wrong_type");
+    r.enter();
+    ++r.pos;
+    OAScopedApplierApplyResult v;
+    std::uint32_t seen = 0;
+    r.skip_ws();
+    if (r.at() != '}') {
+        for (;;) {
+            r.skip_ws();
+            if (r.at() != '"') r.refuse("malformed");
+            const std::string key = r.str();
+            r.skip_ws();
+            if (r.at() != ':') r.refuse("malformed");
+            ++r.pos;
+            r.skip_ws();
+            if (key == "value") {
+                if (seen & 1u) r.refuse("duplicate_field");
+                seen |= 1u;
+                v.value = decode_apply_result(r);
+            } else {
+                r.refuse("unknown_field");
+            }
+            r.skip_ws();
+            if (r.at() != ',') break;
+            ++r.pos;
+        }
+    }
+    if (r.at() != '}') r.refuse("malformed");
+    ++r.pos;
+    --r.depth;
+    if ((seen & 1u) != 1u) r.refuse("missing_field");
+    return v;
+}
+
 inline std::string encode_binary(const std::vector<std::uint8_t>& value){
  const char* alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
  std::string out;
@@ -3735,5 +4910,358 @@ private:
 void* ready_self_=nullptr;
 bool(*ready_hook_)(void*,std::string&)=nullptr;
 };
+struct SecretReader{virtual ~SecretReader()=default;
+virtual SecretReadResult read(const std::string& name)=0;
+};
+template<class Transport>struct SecretReaderClient:SecretReader{Transport& transport_;explicit SecretReaderClient(Transport&t):transport_(t){}
+SecretReadResult read(const std::string& name)override{detail::OASecretReaderReadArguments args;
+args.name=name;
+detail::OAServiceFrame v;v.version=1;v.service="abstraction.credentials/reader@1";v.method="Read";detail::enc_oa_secret_reader_read_arguments(v.arguments,args,1);std::string frame;detail::enc_oa_service_frame(frame,v,0);detail::service_payload(frame);
+auto response=transport_.exchange_frame(frame);auto payload=detail::service_response(response,v.service,v.method);detail::Reader r{payload};r.depth=1;r.skip_ws();auto result=detail::decode_oa_secret_reader_read_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");
+return result.value;
+}
+};
+struct SecretReaderService{inline static constexpr std::string_view kWireName="abstraction.credentials/reader@1";inline static constexpr std::string_view kCapability="abstraction.credentials";template<class Transport>using Client=SecretReaderClient<Transport>;};
+struct SecretReaderDispatcher:FrameWriter,FrameExchanger{SecretReader&handler;explicit SecretReaderDispatcher(SecretReader&h):handler(h){}
+// A handler whose own type has ready(), returning a pair of bool and std::string, reports its readiness through describe_service.
+template<class H,class=decltype(static_cast<SecretReader&>(*static_cast<H*>(nullptr)))>explicit SecretReaderDispatcher(H&h):handler(h),ready_self_(&h),ready_hook_(detail::ready_hook<H>(0)){}
+// This dispatcher's service as abstraction.facade/endpoint@1 Describe lists it.
+DescribedService describe_service()const{DescribedService s{"abstraction.credentials/reader@1",true,std::string()};if(ready_hook_){s.ready=ready_hook_(ready_self_,s.why);if(s.ready)s.why.clear();}return s;}
+void write_frame(std::string_view frame)override{auto v=detail::service_payload(frame);if(v.service!="abstraction.credentials/reader@1")throw DispatchError("unknown_service");
+if(v.method=="Read"){
+throw DispatchError("wrong_mode");}
+throw DispatchError("unknown_method");}
+std::string exchange_frame(std::string_view frame)override{auto v=detail::service_payload(frame);if(v.service==kEndpointContract)return describe_endpoint(frame,std::string(),std::string(),*this);if(v.service!="abstraction.credentials/reader@1"){ServiceError e("unknown_service","");return detail::service_reply(v,"",&e);}
+try{
+if(v.method=="Read"){
+detail::Reader r{v.arguments};r.depth=1;r.skip_ws();auto args=detail::decode_oa_secret_reader_read_arguments(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");auto payload=invoke_read(args);return detail::service_reply(v,payload);}
+throw ServiceError("unknown_method","");}catch(const ServiceError&e){return detail::service_reply(v,"",&e);}catch(const Refusal&e){ServiceError error(e.word,"");return detail::service_reply(v,"",&error);}
+}
+private:
+Raw invoke_read(const detail::OASecretReaderReadArguments&args){
+SecretReadResult result{};
+try{
+result=handler.read(args.name);
+}catch(const ServiceError&){throw;}catch(...){throw ServiceError("handler_error","handler failed");}
+try{
+detail::OASecretReaderReadResult value;
+value.value=result;
+Raw payload;detail::enc_oa_secret_reader_read_result(payload,value,1);detail::Reader r{payload};r.depth=1;r.skip_ws();detail::decode_oa_secret_reader_read_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");return payload;
+}catch(...){throw ServiceError("invalid_result","");}
+}
+private:
+void* ready_self_=nullptr;
+bool(*ready_hook_)(void*,std::string&)=nullptr;
+};
+struct ScopedHolder{virtual ~ScopedHolder()=default;
+virtual StoreResult store(const std::string& expected_revision,const Registration& registration)=0;
+virtual RotateResult rotate(const std::string& expected_revision,const Rotation& rotation)=0;
+virtual RevokeResult revoke(const std::string& expected_revision,const std::string& name)=0;
+virtual MetadataReadResult metadata(const std::string& name)=0;
+};
+template<class Transport>struct ScopedHolderClient:ScopedHolder{Transport& transport_;explicit ScopedHolderClient(Transport&t):transport_(t){}
+StoreResult store(const std::string& expected_revision,const Registration& registration)override{detail::OAScopedHolderStoreArguments args;
+args.expected_revision=expected_revision;
+args.registration=registration;
+detail::OAServiceFrame v;v.version=1;v.service="abstraction.credentials/holder@2";v.method="Store";detail::enc_oa_scoped_holder_store_arguments(v.arguments,args,1);std::string frame;detail::enc_oa_service_frame(frame,v,0);detail::service_payload(frame);
+auto response=transport_.exchange_frame(frame);auto payload=detail::service_response(response,v.service,v.method);detail::Reader r{payload};r.depth=1;r.skip_ws();auto result=detail::decode_oa_scoped_holder_store_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");
+return result.value;
+}
+RotateResult rotate(const std::string& expected_revision,const Rotation& rotation)override{detail::OAScopedHolderRotateArguments args;
+args.expected_revision=expected_revision;
+args.rotation=rotation;
+detail::OAServiceFrame v;v.version=1;v.service="abstraction.credentials/holder@2";v.method="Rotate";detail::enc_oa_scoped_holder_rotate_arguments(v.arguments,args,1);std::string frame;detail::enc_oa_service_frame(frame,v,0);detail::service_payload(frame);
+auto response=transport_.exchange_frame(frame);auto payload=detail::service_response(response,v.service,v.method);detail::Reader r{payload};r.depth=1;r.skip_ws();auto result=detail::decode_oa_scoped_holder_rotate_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");
+return result.value;
+}
+RevokeResult revoke(const std::string& expected_revision,const std::string& name)override{detail::OAScopedHolderRevokeArguments args;
+args.expected_revision=expected_revision;
+args.name=name;
+detail::OAServiceFrame v;v.version=1;v.service="abstraction.credentials/holder@2";v.method="Revoke";detail::enc_oa_scoped_holder_revoke_arguments(v.arguments,args,1);std::string frame;detail::enc_oa_service_frame(frame,v,0);detail::service_payload(frame);
+auto response=transport_.exchange_frame(frame);auto payload=detail::service_response(response,v.service,v.method);detail::Reader r{payload};r.depth=1;r.skip_ws();auto result=detail::decode_oa_scoped_holder_revoke_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");
+return result.value;
+}
+MetadataReadResult metadata(const std::string& name)override{detail::OAScopedHolderMetadataArguments args;
+args.name=name;
+detail::OAServiceFrame v;v.version=1;v.service="abstraction.credentials/holder@2";v.method="Metadata";detail::enc_oa_scoped_holder_metadata_arguments(v.arguments,args,1);std::string frame;detail::enc_oa_service_frame(frame,v,0);detail::service_payload(frame);
+auto response=transport_.exchange_frame(frame);auto payload=detail::service_response(response,v.service,v.method);detail::Reader r{payload};r.depth=1;r.skip_ws();auto result=detail::decode_oa_scoped_holder_metadata_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");
+return result.value;
+}
+};
+struct ScopedHolderService{inline static constexpr std::string_view kWireName="abstraction.credentials/holder@2";inline static constexpr std::string_view kCapability="abstraction.credentials";template<class Transport>using Client=ScopedHolderClient<Transport>;};
+struct ScopedHolderDispatcher:FrameWriter,FrameExchanger{ScopedHolder&handler;explicit ScopedHolderDispatcher(ScopedHolder&h):handler(h){}
+// A handler whose own type has ready(), returning a pair of bool and std::string, reports its readiness through describe_service.
+template<class H,class=decltype(static_cast<ScopedHolder&>(*static_cast<H*>(nullptr)))>explicit ScopedHolderDispatcher(H&h):handler(h),ready_self_(&h),ready_hook_(detail::ready_hook<H>(0)){}
+// This dispatcher's service as abstraction.facade/endpoint@1 Describe lists it.
+DescribedService describe_service()const{DescribedService s{"abstraction.credentials/holder@2",true,std::string()};if(ready_hook_){s.ready=ready_hook_(ready_self_,s.why);if(s.ready)s.why.clear();}return s;}
+void write_frame(std::string_view frame)override{auto v=detail::service_payload(frame);if(v.service!="abstraction.credentials/holder@2")throw DispatchError("unknown_service");
+if(v.method=="Store"){
+throw DispatchError("wrong_mode");}
+if(v.method=="Rotate"){
+throw DispatchError("wrong_mode");}
+if(v.method=="Revoke"){
+throw DispatchError("wrong_mode");}
+if(v.method=="Metadata"){
+throw DispatchError("wrong_mode");}
+throw DispatchError("unknown_method");}
+std::string exchange_frame(std::string_view frame)override{auto v=detail::service_payload(frame);if(v.service==kEndpointContract)return describe_endpoint(frame,std::string(),std::string(),*this);if(v.service!="abstraction.credentials/holder@2"){ServiceError e("unknown_service","");return detail::service_reply(v,"",&e);}
+try{
+if(v.method=="Store"){
+detail::Reader r{v.arguments};r.depth=1;r.skip_ws();auto args=detail::decode_oa_scoped_holder_store_arguments(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");auto payload=invoke_store(args);return detail::service_reply(v,payload);}
+if(v.method=="Rotate"){
+detail::Reader r{v.arguments};r.depth=1;r.skip_ws();auto args=detail::decode_oa_scoped_holder_rotate_arguments(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");auto payload=invoke_rotate(args);return detail::service_reply(v,payload);}
+if(v.method=="Revoke"){
+detail::Reader r{v.arguments};r.depth=1;r.skip_ws();auto args=detail::decode_oa_scoped_holder_revoke_arguments(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");auto payload=invoke_revoke(args);return detail::service_reply(v,payload);}
+if(v.method=="Metadata"){
+detail::Reader r{v.arguments};r.depth=1;r.skip_ws();auto args=detail::decode_oa_scoped_holder_metadata_arguments(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");auto payload=invoke_metadata(args);return detail::service_reply(v,payload);}
+throw ServiceError("unknown_method","");}catch(const ServiceError&e){return detail::service_reply(v,"",&e);}catch(const Refusal&e){ServiceError error(e.word,"");return detail::service_reply(v,"",&error);}
+}
+private:
+Raw invoke_store(const detail::OAScopedHolderStoreArguments&args){
+StoreResult result{};
+try{
+result=handler.store(args.expected_revision,args.registration);
+}catch(const ServiceError&){throw;}catch(...){throw ServiceError("handler_error","handler failed");}
+try{
+detail::OAScopedHolderStoreResult value;
+value.value=result;
+Raw payload;detail::enc_oa_scoped_holder_store_result(payload,value,1);detail::Reader r{payload};r.depth=1;r.skip_ws();detail::decode_oa_scoped_holder_store_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");return payload;
+}catch(...){throw ServiceError("invalid_result","");}
+}
+Raw invoke_rotate(const detail::OAScopedHolderRotateArguments&args){
+RotateResult result{};
+try{
+result=handler.rotate(args.expected_revision,args.rotation);
+}catch(const ServiceError&){throw;}catch(...){throw ServiceError("handler_error","handler failed");}
+try{
+detail::OAScopedHolderRotateResult value;
+value.value=result;
+Raw payload;detail::enc_oa_scoped_holder_rotate_result(payload,value,1);detail::Reader r{payload};r.depth=1;r.skip_ws();detail::decode_oa_scoped_holder_rotate_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");return payload;
+}catch(...){throw ServiceError("invalid_result","");}
+}
+Raw invoke_revoke(const detail::OAScopedHolderRevokeArguments&args){
+RevokeResult result{};
+try{
+result=handler.revoke(args.expected_revision,args.name);
+}catch(const ServiceError&){throw;}catch(...){throw ServiceError("handler_error","handler failed");}
+try{
+detail::OAScopedHolderRevokeResult value;
+value.value=result;
+Raw payload;detail::enc_oa_scoped_holder_revoke_result(payload,value,1);detail::Reader r{payload};r.depth=1;r.skip_ws();detail::decode_oa_scoped_holder_revoke_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");return payload;
+}catch(...){throw ServiceError("invalid_result","");}
+}
+Raw invoke_metadata(const detail::OAScopedHolderMetadataArguments&args){
+MetadataReadResult result{};
+try{
+result=handler.metadata(args.name);
+}catch(const ServiceError&){throw;}catch(...){throw ServiceError("handler_error","handler failed");}
+try{
+detail::OAScopedHolderMetadataResult value;
+value.value=result;
+Raw payload;detail::enc_oa_scoped_holder_metadata_result(payload,value,1);detail::Reader r{payload};r.depth=1;r.skip_ws();detail::decode_oa_scoped_holder_metadata_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");return payload;
+}catch(...){throw ServiceError("invalid_result","");}
+}
+private:
+void* ready_self_=nullptr;
+bool(*ready_hook_)(void*,std::string&)=nullptr;
+};
+struct ScopedApplier{virtual ~ScopedApplier()=default;
+virtual CheckResult check(const Use& usage)=0;
+virtual ApplyResult apply(const Use& usage)=0;
+};
+template<class Transport>struct ScopedApplierClient:ScopedApplier{Transport& transport_;explicit ScopedApplierClient(Transport&t):transport_(t){}
+CheckResult check(const Use& usage)override{detail::OAScopedApplierCheckArguments args;
+args.usage=usage;
+detail::OAServiceFrame v;v.version=1;v.service="abstraction.credentials/applier@2";v.method="Check";detail::enc_oa_scoped_applier_check_arguments(v.arguments,args,1);std::string frame;detail::enc_oa_service_frame(frame,v,0);detail::service_payload(frame);
+auto response=transport_.exchange_frame(frame);auto payload=detail::service_response(response,v.service,v.method);detail::Reader r{payload};r.depth=1;r.skip_ws();auto result=detail::decode_oa_scoped_applier_check_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");
+return result.value;
+}
+ApplyResult apply(const Use& usage)override{detail::OAScopedApplierApplyArguments args;
+args.usage=usage;
+detail::OAServiceFrame v;v.version=1;v.service="abstraction.credentials/applier@2";v.method="Apply";detail::enc_oa_scoped_applier_apply_arguments(v.arguments,args,1);std::string frame;detail::enc_oa_service_frame(frame,v,0);detail::service_payload(frame);
+auto response=transport_.exchange_frame(frame);auto payload=detail::service_response(response,v.service,v.method);detail::Reader r{payload};r.depth=1;r.skip_ws();auto result=detail::decode_oa_scoped_applier_apply_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");
+return result.value;
+}
+};
+struct ScopedApplierService{inline static constexpr std::string_view kWireName="abstraction.credentials/applier@2";inline static constexpr std::string_view kCapability="abstraction.credentials";template<class Transport>using Client=ScopedApplierClient<Transport>;};
+struct ScopedApplierDispatcher:FrameWriter,FrameExchanger{ScopedApplier&handler;explicit ScopedApplierDispatcher(ScopedApplier&h):handler(h){}
+// A handler whose own type has ready(), returning a pair of bool and std::string, reports its readiness through describe_service.
+template<class H,class=decltype(static_cast<ScopedApplier&>(*static_cast<H*>(nullptr)))>explicit ScopedApplierDispatcher(H&h):handler(h),ready_self_(&h),ready_hook_(detail::ready_hook<H>(0)){}
+// This dispatcher's service as abstraction.facade/endpoint@1 Describe lists it.
+DescribedService describe_service()const{DescribedService s{"abstraction.credentials/applier@2",true,std::string()};if(ready_hook_){s.ready=ready_hook_(ready_self_,s.why);if(s.ready)s.why.clear();}return s;}
+void write_frame(std::string_view frame)override{auto v=detail::service_payload(frame);if(v.service!="abstraction.credentials/applier@2")throw DispatchError("unknown_service");
+if(v.method=="Check"){
+throw DispatchError("wrong_mode");}
+if(v.method=="Apply"){
+throw DispatchError("wrong_mode");}
+throw DispatchError("unknown_method");}
+std::string exchange_frame(std::string_view frame)override{auto v=detail::service_payload(frame);if(v.service==kEndpointContract)return describe_endpoint(frame,std::string(),std::string(),*this);if(v.service!="abstraction.credentials/applier@2"){ServiceError e("unknown_service","");return detail::service_reply(v,"",&e);}
+try{
+if(v.method=="Check"){
+detail::Reader r{v.arguments};r.depth=1;r.skip_ws();auto args=detail::decode_oa_scoped_applier_check_arguments(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");auto payload=invoke_check(args);return detail::service_reply(v,payload);}
+if(v.method=="Apply"){
+detail::Reader r{v.arguments};r.depth=1;r.skip_ws();auto args=detail::decode_oa_scoped_applier_apply_arguments(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");auto payload=invoke_apply(args);return detail::service_reply(v,payload);}
+throw ServiceError("unknown_method","");}catch(const ServiceError&e){return detail::service_reply(v,"",&e);}catch(const Refusal&e){ServiceError error(e.word,"");return detail::service_reply(v,"",&error);}
+}
+private:
+Raw invoke_check(const detail::OAScopedApplierCheckArguments&args){
+CheckResult result{};
+try{
+result=handler.check(args.usage);
+}catch(const ServiceError&){throw;}catch(...){throw ServiceError("handler_error","handler failed");}
+try{
+detail::OAScopedApplierCheckResult value;
+value.value=result;
+Raw payload;detail::enc_oa_scoped_applier_check_result(payload,value,1);detail::Reader r{payload};r.depth=1;r.skip_ws();detail::decode_oa_scoped_applier_check_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");return payload;
+}catch(...){throw ServiceError("invalid_result","");}
+}
+Raw invoke_apply(const detail::OAScopedApplierApplyArguments&args){
+ApplyResult result{};
+try{
+result=handler.apply(args.usage);
+}catch(const ServiceError&){throw;}catch(...){throw ServiceError("handler_error","handler failed");}
+try{
+detail::OAScopedApplierApplyResult value;
+value.value=result;
+Raw payload;detail::enc_oa_scoped_applier_apply_result(payload,value,1);detail::Reader r{payload};r.depth=1;r.skip_ws();detail::decode_oa_scoped_applier_apply_result(r);r.skip_ws();if(r.pos!=r.buf.size())r.refuse("trailing_bytes");return payload;
+}catch(...){throw ServiceError("invalid_result","");}
+}
+private:
+void* ready_self_=nullptr;
+bool(*ready_hook_)(void*,std::string&)=nullptr;
+};
+
+namespace detail {
+inline Subject decode_subject_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_subject(r);consumed=r.pos;return v;}
+inline std::string encode_subject_at(const Subject& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_subject(out,v,depth);std::size_t n=0;decode_subject_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_subject(const Subject& v){return detail::encode_subject_at(v,0)+"\n";}
+inline Subject decode_subject(std::string_view in){std::size_t n=0;auto v=detail::decode_subject_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline Scope decode_scope_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_scope(r);consumed=r.pos;return v;}
+inline std::string encode_scope_at(const Scope& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_scope(out,v,depth);std::size_t n=0;decode_scope_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_scope(const Scope& v){return detail::encode_scope_at(v,0)+"\n";}
+inline Scope decode_scope(std::string_view in){std::size_t n=0;auto v=detail::decode_scope_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline Metadata decode_metadata_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_metadata(r);consumed=r.pos;return v;}
+inline std::string encode_metadata_at(const Metadata& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_metadata(out,v,depth);std::size_t n=0;decode_metadata_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_metadata(const Metadata& v){return detail::encode_metadata_at(v,0)+"\n";}
+inline Metadata decode_metadata(std::string_view in){std::size_t n=0;auto v=detail::decode_metadata_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline Registration decode_registration_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_registration(r);consumed=r.pos;return v;}
+inline std::string encode_registration_at(const Registration& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_registration(out,v,depth);std::size_t n=0;decode_registration_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_registration(const Registration& v){return detail::encode_registration_at(v,0)+"\n";}
+inline Registration decode_registration(std::string_view in){std::size_t n=0;auto v=detail::decode_registration_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline Rotation decode_rotation_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_rotation(r);consumed=r.pos;return v;}
+inline std::string encode_rotation_at(const Rotation& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_rotation(out,v,depth);std::size_t n=0;decode_rotation_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_rotation(const Rotation& v){return detail::encode_rotation_at(v,0)+"\n";}
+inline Rotation decode_rotation(std::string_view in){std::size_t n=0;auto v=detail::decode_rotation_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline StoreResult decode_store_result_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_store_result(r);consumed=r.pos;return v;}
+inline std::string encode_store_result_at(const StoreResult& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_store_result(out,v,depth);std::size_t n=0;decode_store_result_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_store_result(const StoreResult& v){return detail::encode_store_result_at(v,0)+"\n";}
+inline StoreResult decode_store_result(std::string_view in){std::size_t n=0;auto v=detail::decode_store_result_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline RotateResult decode_rotate_result_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_rotate_result(r);consumed=r.pos;return v;}
+inline std::string encode_rotate_result_at(const RotateResult& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_rotate_result(out,v,depth);std::size_t n=0;decode_rotate_result_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_rotate_result(const RotateResult& v){return detail::encode_rotate_result_at(v,0)+"\n";}
+inline RotateResult decode_rotate_result(std::string_view in){std::size_t n=0;auto v=detail::decode_rotate_result_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline RevokeResult decode_revoke_result_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_revoke_result(r);consumed=r.pos;return v;}
+inline std::string encode_revoke_result_at(const RevokeResult& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_revoke_result(out,v,depth);std::size_t n=0;decode_revoke_result_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_revoke_result(const RevokeResult& v){return detail::encode_revoke_result_at(v,0)+"\n";}
+inline RevokeResult decode_revoke_result(std::string_view in){std::size_t n=0;auto v=detail::decode_revoke_result_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline Limits decode_limits_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_limits(r);consumed=r.pos;return v;}
+inline std::string encode_limits_at(const Limits& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_limits(out,v,depth);std::size_t n=0;decode_limits_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_limits(const Limits& v){return detail::encode_limits_at(v,0)+"\n";}
+inline Limits decode_limits(std::string_view in){std::size_t n=0;auto v=detail::decode_limits_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline MetadataPage decode_metadata_page_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_metadata_page(r);consumed=r.pos;return v;}
+inline std::string encode_metadata_page_at(const MetadataPage& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_metadata_page(out,v,depth);std::size_t n=0;decode_metadata_page_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_metadata_page(const MetadataPage& v){return detail::encode_metadata_page_at(v,0)+"\n";}
+inline MetadataPage decode_metadata_page(std::string_view in){std::size_t n=0;auto v=detail::decode_metadata_page_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline AuditEntry decode_audit_entry_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_audit_entry(r);consumed=r.pos;return v;}
+inline std::string encode_audit_entry_at(const AuditEntry& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_audit_entry(out,v,depth);std::size_t n=0;decode_audit_entry_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_audit_entry(const AuditEntry& v){return detail::encode_audit_entry_at(v,0)+"\n";}
+inline AuditEntry decode_audit_entry(std::string_view in){std::size_t n=0;auto v=detail::decode_audit_entry_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline AuditPage decode_audit_page_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_audit_page(r);consumed=r.pos;return v;}
+inline std::string encode_audit_page_at(const AuditPage& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_audit_page(out,v,depth);std::size_t n=0;decode_audit_page_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_audit_page(const AuditPage& v){return detail::encode_audit_page_at(v,0)+"\n";}
+inline AuditPage decode_audit_page(std::string_view in){std::size_t n=0;auto v=detail::decode_audit_page_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline Use decode_use_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_use(r);consumed=r.pos;return v;}
+inline std::string encode_use_at(const Use& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_use(out,v,depth);std::size_t n=0;decode_use_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_use(const Use& v){return detail::encode_use_at(v,0)+"\n";}
+inline Use decode_use(std::string_view in){std::size_t n=0;auto v=detail::decode_use_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline CredentialResource decode_credential_resource_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_credential_resource(r);consumed=r.pos;return v;}
+inline std::string encode_credential_resource_at(const CredentialResource& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_credential_resource(out,v,depth);std::size_t n=0;decode_credential_resource_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_credential_resource(const CredentialResource& v){return detail::encode_credential_resource_at(v,0)+"\n";}
+inline CredentialResource decode_credential_resource(std::string_view in){std::size_t n=0;auto v=detail::decode_credential_resource_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline CheckResult decode_check_result_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_check_result(r);consumed=r.pos;return v;}
+inline std::string encode_check_result_at(const CheckResult& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_check_result(out,v,depth);std::size_t n=0;decode_check_result_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_check_result(const CheckResult& v){return detail::encode_check_result_at(v,0)+"\n";}
+inline CheckResult decode_check_result(std::string_view in){std::size_t n=0;auto v=detail::decode_check_result_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline ApplyResult decode_apply_result_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_apply_result(r);consumed=r.pos;return v;}
+inline std::string encode_apply_result_at(const ApplyResult& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_apply_result(out,v,depth);std::size_t n=0;decode_apply_result_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_apply_result(const ApplyResult& v){return detail::encode_apply_result_at(v,0)+"\n";}
+inline ApplyResult decode_apply_result(std::string_view in){std::size_t n=0;auto v=detail::decode_apply_result_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline SecretValue decode_secret_value_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_secret_value(r);consumed=r.pos;return v;}
+inline std::string encode_secret_value_at(const SecretValue& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_secret_value(out,v,depth);std::size_t n=0;decode_secret_value_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_secret_value(const SecretValue& v){return detail::encode_secret_value_at(v,0)+"\n";}
+inline SecretValue decode_secret_value(std::string_view in){std::size_t n=0;auto v=detail::decode_secret_value_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline SecretReadResult decode_secret_read_result_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_secret_read_result(r);consumed=r.pos;return v;}
+inline std::string encode_secret_read_result_at(const SecretReadResult& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_secret_read_result(out,v,depth);std::size_t n=0;decode_secret_read_result_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_secret_read_result(const SecretReadResult& v){return detail::encode_secret_read_result_at(v,0)+"\n";}
+inline SecretReadResult decode_secret_read_result(std::string_view in){std::size_t n=0;auto v=detail::decode_secret_read_result_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
+
+namespace detail {
+inline MetadataReadResult decode_metadata_read_result_at(std::string_view in,int depth,int limit,std::size_t& consumed){detail::Reader r{in};if(depth<0||limit<1)r.refuse("depth_exceeded");r.depth=depth;r.limit=limit<detail::kDepthLimit?limit:detail::kDepthLimit;r.skip_ws();auto v=detail::decode_metadata_read_result(r);consumed=r.pos;return v;}
+inline std::string encode_metadata_read_result_at(const MetadataReadResult& v,int depth){detail::Reader r{""};if(depth<0||depth>=detail::kDepthLimit)r.refuse("depth_exceeded");std::string out;detail::enc_metadata_read_result(out,v,depth);std::size_t n=0;decode_metadata_read_result_at(out,depth,detail::kDepthLimit,n);return out;}
+}  // namespace detail
+inline std::string encode_metadata_read_result(const MetadataReadResult& v){return detail::encode_metadata_read_result_at(v,0)+"\n";}
+inline MetadataReadResult decode_metadata_read_result(std::string_view in){std::size_t n=0;auto v=detail::decode_metadata_read_result_at(in,0,detail::kDepthLimit,n);detail::Reader r{in};r.pos=n;r.skip_ws();if(r.pos!=in.size())r.refuse("trailing_bytes");return v;}
 
 }  // namespace abstraction::credentials::api

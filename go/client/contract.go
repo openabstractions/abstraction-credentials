@@ -52,6 +52,34 @@ type CheckResult = wire.CheckResult
 
 type ApplyResult = wire.ApplyResult
 
+type SecretValue = wire.SecretValue
+type SecretReadResult = wire.SecretReadResult
+type MetadataReadResult = wire.MetadataReadResult
+type SecretReadOutcome = wire.SecretReadOutcome
+type MetadataReadOutcome = wire.MetadataReadOutcome
+
+const (
+	SecretReadOutcomeRead            = wire.SecretReadOutcomeRead
+	SecretReadOutcomeUnknown         = wire.SecretReadOutcomeUnknown
+	SecretReadOutcomeExpired         = wire.SecretReadOutcomeExpired
+	SecretReadOutcomeRevoked         = wire.SecretReadOutcomeRevoked
+	SecretReadOutcomeLost            = wire.SecretReadOutcomeLost
+	SecretReadOutcomeInvalid         = wire.SecretReadOutcomeInvalid
+	SecretReadOutcomeForbidden       = wire.SecretReadOutcomeForbidden
+	SecretReadOutcomeUnavailable     = wire.SecretReadOutcomeUnavailable
+	SecretReadOutcomeConflict        = wire.SecretReadOutcomeConflict
+	SecretReadOutcomeUnsupportedKind = wire.SecretReadOutcomeUnsupportedKind
+	MetadataReadOutcomeFound         = wire.MetadataReadOutcomeFound
+	MetadataReadOutcomeUnknown       = wire.MetadataReadOutcomeUnknown
+	MetadataReadOutcomeInvalid       = wire.MetadataReadOutcomeInvalid
+	MetadataReadOutcomeForbidden     = wire.MetadataReadOutcomeForbidden
+	MetadataReadOutcomeUnavailable   = wire.MetadataReadOutcomeUnavailable
+	MetadataReadOutcomeConflict      = wire.MetadataReadOutcomeConflict
+)
+
+func SecretReadOutcomeValues() []SecretReadOutcome     { return wire.SecretReadOutcomeValues() }
+func MetadataReadOutcomeValues() []MetadataReadOutcome { return wire.MetadataReadOutcomeValues() }
+
 type ServiceError = wire.ServiceError
 
 type State = wire.State
