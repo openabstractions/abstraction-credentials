@@ -112,7 +112,7 @@ func takeBlob(out windows.DataBlob) []byte {
 	}
 	data := unsafe.Slice(out.Data, out.Size)
 	copied := append([]byte(nil), data...)
-	zero(data)
+	clear(data)
 	//unchecked: LocalFree fails only for a handle LocalAlloc did not return; DPAPI allocated this one
 	windows.LocalFree(windows.Handle(unsafe.Pointer(out.Data)))
 	return copied
@@ -176,7 +176,7 @@ func dpapiKeyWorks() bool {
 		return false
 	}
 	opened, err := unseal(sealed, entropy)
-	defer zero(opened)
+	defer clear(opened)
 	return err == nil && string(opened) == string(canary)
 }
 
@@ -220,7 +220,9 @@ func moveReplace(from, to string) error {
 	if err != nil {
 		return err
 	}
-	return windows.MoveFileEx(src, dst, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
+	return retryStateRename(func() error {
+		return windows.MoveFileEx(src, dst, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
+	})
 }
 
 func (b dpapiFile) Get(key string) ([]byte, error) {
@@ -260,7 +262,7 @@ func (b dpapiFile) Get(key string) ([]byte, error) {
 		return nil, unsealOutcome(err)
 	}
 	if len(secret) == 0 || len(secret) > MaxSecretBytes {
-		zero(secret)
+		clear(secret)
 		return nil, ErrNotFound
 	}
 	return secret, nil

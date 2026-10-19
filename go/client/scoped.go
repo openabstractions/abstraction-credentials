@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	credentials "github.com/openabstractions/abstraction-credentials/go"
 	wire "github.com/openabstractions/abstraction-credentials/go/abstraction/credentials/api"
 	"github.com/openabstractions/abstraction-identity/listen"
 )
@@ -33,18 +32,15 @@ func (t *sensitiveExchange) ExchangeFrame(frame []byte) ([]byte, error) {
 	t.response = reply
 	return reply, err
 }
-func clear(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
-}
 func (t *sensitiveExchange) close() { clear(t.request); clear(t.response) }
 
-func validateRead(v wire.SecretReadResult, name string) bool {
-	if v.Outcome != wire.SecretReadOutcomeRead {
-		return v.Value == nil
-	}
-	return v.Value != nil && v.Value.Name == name && v.Value.Revision != "" && len(v.Value.Revision) <= 128 && len(v.Value.Secret) >= 1 && len(v.Value.Secret) <= credentials.MaxSecretBytes
+// The published reader@1 baseline prevents adding these field constraints in
+// this service window. Keep the existing reader defence without importing the
+// holder/backend implementation; the owning constant is compared in tests.
+const maxReadSecretBytes = 4096
+
+func validateReadValue(v *wire.SecretValue, name string) bool {
+	return v != nil && v.Name == name && v.Revision != "" && len(v.Revision) <= 128 && len(v.Secret) >= 1 && len(v.Secret) <= maxReadSecretBytes
 }
 
 func (c *SecretReader) Read(ctx context.Context, name string) (SecretReadResult, error) {
@@ -61,7 +57,7 @@ func readSecret(ctx context.Context, name string, transport wire.FrameExchanger)
 	if err == nil && ctx.Err() != nil {
 		err = ctx.Err()
 	}
-	if err == nil && !validateRead(v, name) {
+	if err == nil && v.Outcome == wire.SecretReadOutcomeRead && !validateReadValue(v.Value, name) {
 		err = ErrInconsistent
 	}
 	if err != nil {
@@ -151,8 +147,8 @@ func (c *ScopedHolder) Metadata(ctx context.Context, name string) (MetadataReadR
 		return MetadataReadResult{}, err
 	}
 	v, err := wire.NewScopedHolderClient(c.transport.WithContext(ctx)).Metadata(name)
-	if err == nil {
-		err = check((v.Outcome == wire.MetadataReadOutcomeFound && validateMetadata(v.Current, name)) || (v.Outcome != wire.MetadataReadOutcomeFound && v.Current == nil))
+	if err == nil && v.Outcome == wire.MetadataReadOutcomeFound {
+		err = check(validateMetadata(v.Current, name))
 	}
 	if err != nil {
 		return MetadataReadResult{}, err

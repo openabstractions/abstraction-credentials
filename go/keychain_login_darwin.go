@@ -266,7 +266,7 @@ func (b *loginKeychain) Get(key string) ([]byte, error) {
 	defer C.free(unsafe.Pointer(out))
 	blob := unsafe.Slice((*byte)(unsafe.Pointer(out)), int(length))
 	secret := append([]byte(nil), blob...)
-	zero(blob)
+	clear(blob)
 	return secret, nil
 }
 

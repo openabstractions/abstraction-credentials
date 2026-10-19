@@ -1,8 +1,15 @@
 # abstraction.credentials contract
 
+Remote profile: the current service methods retain `local` (explicit or
+default); the general paired listener does not offer this capability. Retained
+capability-specific delegation keeps its existing contract and is separate
+from that listener. Held by: `idl/gen/service_test.go`
+(`TestDispatcherTableCarriesRemoteProfile`) and `serve/runtime_remote_test.go`
+(`TestRemoteRuntimeDescribeUsesLiveGrantAndExplicitServices`).
+
 `credentials.thrift` defines versioned services. `abstraction.credentials/holder@1`
 — prose name credential manager — registers, rotates, revokes and inspects
-named secrets for the receiving account. `abstraction.credentials/applier@1`
+named secrets for the receiving account. [`abstraction.credentials/applier@1`](https://openabstractions.github.io/reference.html#concept-credentials.applier-service)
 applies a named secret to one outgoing request for a designated consuming
 service. This file states the obligations a provider meets; [README.md](README.md)
 holds the walkthrough. The explicit `reader@1`, `holder@2` and `applier@2`
@@ -13,18 +20,21 @@ Binds: `credentials.thrift`
 Any same-account process can already read the platform's credential store;
 the credential manager raises that bar to a process that speaks the
 platform's credential API as this account, and it keeps secret bytes out of
-job records, configuration, argv, environment, logs and audit entries
-entirely. Authorization is per calling program and per credential name: a
-name inside a request grants nothing, `Store`, `Rotate` and `Revoke` require
-the account's `credentials/manage` rule, and `Apply` requires a rights
+job records, configuration, argv, environment, logs and audit entries.
+Authorization is per calling program and per credential name, with three
+authorities, and a name inside a request grants nothing. Management: `Store`, `Rotate` and `Revoke` require the
+account's `credentials/manage` rule. Raw Read: `reader@1` returns a secret's
+value to a program granted that named secret (CRED-S2). Use: `Apply` requires a rights
 decision for the calling subject, `abstraction.credentials/apply` and
 `credential:<name>`, evaluated inside the receiving host's own designated
-enforcer program. `Scope.targets` and `Scope.consumers` keep a compromised
+enforcer program. [`Scope.targets`](https://openabstractions.github.io/reference.html#concept-credentials.credential-scope) and `Scope.consumers` keep a compromised
 record from reaching another host or another service, and a rights or
 platform-store outage fails the call instead of falling back to a substitute
 secret source.
 
 ## Reading this page
+
+The conventions every OA contract carries are stated once in [CONVENTIONS.md](https://github.com/openabstractions/abstractions/blob/main/idl/CONVENTIONS.md); a rule here that applies one cites its `CONV-` id.
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
 "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this
@@ -53,7 +63,7 @@ applier; `CRED-A6` judges each consuming service.
 ## Credential manager
 
 **[CRED-H1] Peer binding.** Every credential-manager call MUST bind the
-receiving peer by native Program proof: kernel user and process, bound path.
+receiving peer by native [Program](https://openabstractions.github.io/reference.html#concept-identity.listener-program-need) proof: kernel user and process, bound path.
 A peer of another account reads `forbidden`. The bound account and program
 form the subject of every rights decision.
 
@@ -78,8 +88,7 @@ The separately admitted `reader@1` raw disclosure is governed by CRED-S2.
 
 **[CRED-H4] No configured store, no substitute.** A runtime for which the
 platform's credential store is not configured MUST answer `Store` and
-`Rotate` with `no_secure_store` and MUST report `Limits.secure_store =
-"none"`. A machine-wide runtime answers the same in this version. The
+`Rotate` with `no_secure_store` and MUST report [`Limits.secure_store = "none"`](https://openabstractions.github.io/reference.html#concept-credentials.holder-limits). A machine-wide runtime answers the same in this version. The
 provider MUST NOT read an environment variable, configuration value or plain
 file as a substitute. The `file-0600` store is configured only by an
 explicit operator choice.
@@ -94,13 +103,23 @@ callers reconcile from `current` or `List`.
 refuse a secret containing a control character other than tab, as `invalid`,
 because the applier places it inside one header line.
 
-## Applier
+## [Applier](https://openabstractions.github.io/reference.html#concept-credentials.applier-service)
 
-**[CRED-A1] Peer binding for enforcers.** The receiving host designates
+**[CRED-A1] Peer binding for enforcers.** The [credential applier service](https://openabstractions.github.io/reference.html#concept-credentials.applier-service)
+runs for the receiving host, which designates
 enforcer programs per consumer service. A peer the designation refuses, a
 nil designation, a subject of another account, and every call on a platform
 without process and path proof MUST read `forbidden` before any record is
 read.
+
+The native applier RPC accepts native subject programs. A receiving host's
+internal applier may supply an admitted `remote:<leaf-SPKI-SHA256>` subject
+under its configured local account. It MUST retain the job's exact subject
+and live key admission and obtain an explicit `abstraction.credentials/apply`
+decision for that remote program and credential. A grant to the native
+runtime program grants no remote use. Remote subjects confer no credential
+management or raw-reader authority; stored registration provenance remains
+the native managing program.
 
 **[CRED-A2] Evaluation order.** `Check` and `Apply` MUST evaluate in this
 order: argument shape (`invalid`), record (`unknown`, `revoked`, `expired`,
@@ -176,6 +195,10 @@ states that the list is a seed, not a closed one.
 | `abstraction.inference/speech@1` | each outgoing request to a hosted speech server |
 | `abstraction.inference/image@1` | each outgoing request to a hosted image server |
 | `abstraction.inference/live@1` | each outgoing request to a hosted live-audio server |
+| `abstraction.router/router@1` | each model listing the router requests from a hosted server that names a credential |
+
+The generated wire seed `consumers` (`credentials.thrift`) lags this table;
+"Not built" names the rows it lacks.
 
 A consuming service outside the seed uses its own `<owner>/<name>@<n>` wire
 service name. The receiving host's enforcer designation decides which
@@ -208,7 +231,7 @@ download CONTRACT DL-K2).
 | `Store` | `unsupported_kind` | No applier on this runtime lists the kind in `Limits.supported_kinds` (CRED-R1). |
 | `Store`, `Rotate` | `no_secure_store` | The platform's credential store is not configured, or the runtime is machine-wide (CRED-H4). |
 | `Store` | `exhausted` | The account already holds `Limits.max_credentials` records. |
-| `Store`, `Rotate` | `invalid` | An argument is malformed or over its bound (Bounds), or the secret carries a control character other than tab (CRED-H6). |
+| `Store`, `Rotate` | `invalid` | An argument is malformed, the secret is over `Limits.max_secret_bytes` or the platform store's limit (Bounds), or the secret carries a control character other than tab (CRED-H6). The scoped profiles refuse values outside their declared bounds before transport with `bad_value` (Bounds); published profiles retain method `invalid`. |
 | `Rotate` | `rotated` | The bytes were replaced; a lost or expired record returns to `active`. |
 | `Rotate`, `Revoke` | `unknown` | No record of that name exists, or its tombstone has expired. |
 | `Revoke` | `revoked` | The bytes were destroyed at once; the name reads `revoked` for `tombstone_retention_ms` (Bounds). |
@@ -253,20 +276,44 @@ display-grade and grants unknown members; every outcome enum is acted on and
 refuses unknown members. Two fields sharing one key inside one request
 document are refused.
 
+Published `holder@1`/`holder@2` and `applier@1`/`applier@2` retain the codec
+language of `Scope`, `Registration`, `Rotation`, `Use` and their published
+parameters. The accounted credentials Go v0.3.1 component release includes the
+version-2 services. Their name, revision, secret, scope-list, target, consumer,
+challenge and expiry checks belong to the existing Holder validation, which
+returns typed `invalid` before secret/storage effects. Store retains the empty
+create revision; Rotate and Revoke require a current nonempty revision at that
+semantic owner. The explicitly selected scoped services keep their native
+caller/designated enforcer, saved-secret membership and final typed permission
+checks. Shared `Metadata.scope` keeps the published `Scope` shape. Secret
+annotations continue to mark values and applied headers for redaction.
+CONV-V1 and DEF-A11 prohibit retrofitting early decoder bounds into these
+published service versions.
+
 ## Divergences
 
-None declared for this release.
+| Divergence | Held until | Evidence |
+|---|---|---|
+| The service keeps its published names `holder@2`/`applier@2` (0.4.0, credentials/go v0.3.1, tag `fe2d5988ce14c61bbfb0d2fb08ffdaad15344aed`); vocabulary D26's `credentials/manager@1` arrives with the next version. An evaluated rights refusal folds into `forbidden`; D86's `not_permitted` arrives with the next version. The service declares its own Subject shape, which duplicates the shared `rights.Subject` (P13). | the service's next approved version | `compat_published` exits 0; receipt `fd896b8f97388628a16d26fea8202af5f3cee936c2910c476805b3a53a66ba73` in `.forks/evidence/release-timeline-040/scratch/p8-credentials1104` |
+
+## Scope
+
+This capability stores secrets only in the configured platform's
+credential store: `file-0600` is chosen by explicit operator choice, never a
+default (CRED-H4). The consuming service discovers a wrong secret at its own
+upstream request; this definition checks no secret's value. `Rotate` runs
+only when a caller calls it. A credential registered by one account is
+invisible to another account's `List`, `Audit` or `Apply`.
 
 ## Not built
 
-This capability stores no secret outside the configured platform's
-credential store: `file-0600` is chosen by explicit operator choice, never a
-default (CRED-H4). It validates no secret's value against its own upstream
-service; a wrong bearer token is a failure the consuming service discovers
-at its own request, not one this definition detects. It rotates nothing on
-its own clock: `Rotate` runs only when a caller calls it. A credential
-registered by one account is invisible to another account's `List`, `Audit`
-or `Apply`.
+- The generated `consumers` seed in `credentials.thrift` lacks
+  `abstraction.inference/embed@1`, `abstraction.inference/transcription@1`,
+  `abstraction.inference/speech@1`, `abstraction.inference/image@1`,
+  `abstraction.inference/live@1` and `abstraction.router/router@1`. Repair
+  row: TODO.md, W1-23a.
+- The `SecureStore` enum in `credentials.thrift` lacks `windows-dpapi-file`
+  and `macos-login-keychain`. Repair row: TODO.md, W1-23a.
 
 ## Platform stores
 
@@ -311,6 +358,13 @@ Bytes MUST stay out of Asks, policy, audit, logs, history and errors. A failed
 reply remains uncertain and MUST NOT trigger a fallback or automatic retry.
 Mutable transient buffers MUST be cleared after encoding/reply or refusal;
 this obligation makes no universal heap-erasure claim.
+
+Client compatibility: the component publication baseline rejects adding the
+existing revision 1..128 and secret 1..4096 bounds to `reader@1`'s definition.
+Until its owning CONV-V1 window, the raw reader retains those existing checks
+and requested-name correlation. Its local secret ceiling is compared to the
+holder constant in tests; shipped clients import no holder/backend code.
+
 Every holder backend failure MUST reach report sinks only as a compiled
 operation/status classification. Put, Get, Delete, cleanup and garbage
 collection MUST NOT forward backend diagnostic text or wrapped causes.
@@ -337,7 +391,7 @@ is implied. Legacy methods retain their separately admitted collection.
 admission runs outside the holder mutex and the original call remains refused.
 After any wait, each scoped operation MUST hold the holder mutex, sweep and
 reload current state, and call the quiet shared Rights batch before state
-disclosure, success or backend access. The quiet callback MUST sample one
+disclosure, success or [backend](https://openabstractions.github.io/reference.html#concept-credentials.backend) access. The quiet callback MUST sample one
 policy revision/clock and MUST NOT admit Asks, call Holder/backend or perform
 effects. An optional expected policy revision detects a stale admission.
 Read MUST repeat that quiet check and native recipient check after Backend.Get
@@ -411,8 +465,52 @@ to `windows-dpapi-file` and an existing state binds to
 writes the marker exclusively and durably, and a concurrent start reads the
 marker the first one wrote. An unknown or unreadable marker, or a bound store
 that cannot open, reads `unavailable` and selects no second store. Moving
-registrations between the two stores needs an explicit verified migration; an
+registrations between the two stores needs a verified migration (CRED-B3); an
 empty new store must not turn a registration in the old store into `lost`.
+The provider owns this selection (Go: `OpenPlatformStore`); a runtime passes
+its credentials directory, its holder namespace and its own account, and reads
+no environment to choose a store. The provider also owns which account is
+machine-wide (Go: `MachineScopeAccount`): a Windows service account
+(`S-1-5-18`, `S-1-5-19`, `S-1-5-20`) or uid 0 opens no store and reads `none`
+(CRED-H4). On
+macOS the marker `credentials-keychain-backend` beside the directory binds the
+state the same way. On Linux the operator's choice, `file-0600` or
+`secret-service`, is the marker `credentials-linux-backend` beside the
+directory. A runtime reads a choice an earlier runtime wrote as `backend` inside
+the directory first, then the marker beside it; writing a new choice writes
+the marker beside the directory and removes the file inside. An unknown word or
+a marker that is not a small regular file reads `unavailable`. Writing a
+choice never creates the credentials directory.
+
+**[CRED-B3] A Credential Manager state moves to `windows-dpapi-file` by
+verified copy.** At start, before the holder opens and holding the lock file
+`credentials-windows-migrate.lock` beside the directory, a runtime whose state is
+bound to `windows-credential-manager` copies every item its holder state
+refers to into `windows-dpapi-file`, then reads each copy back and compares
+it with the original. Only when every copy verifies does it write the note
+`credentials-windows-migrated`, which lists the migrated keys under the
+holder namespace, beside the directory and replace the marker
+with `windows-dpapi-file` atomically; it then deletes the listed Credential Manager
+items and removes the note. Items outside the namespace stay: a copied state
+refers to its original's items. An item the Credential Manager does not hold is
+skipped. A store that cannot be read or written, or a copy that reads back
+different bytes, leaves the marker on `windows-credential-manager`, removes
+the copies already made, and the next start tries again. A start interrupted
+at any step serves every registration from the store its marker names; a
+start that finds the note completes the deletes from its list. Before copying,
+a migration writes the note `credentials-windows-migrating` beside the
+directory with the keys it may copy; the next attempt first deletes those
+copies from `windows-dpapi-file`, so a copy an interrupted attempt left never
+outlives a revoke or rotation on the Credential Manager. It keeps the copy of a
+listed key the holder state still refers to and the Credential Manager no
+longer holds: keys carry the revision, so that copy is the same secret. A
+runtime that serves a `windows-credential-manager` binding holds the lock until
+its holder stops serving (Go: the release `OpenPlatformStore` returns), so no
+other start migrates or deletes the items it serves. A start that cannot
+take the lock serves a `windows-dpapi-file` binding and reads `unavailable` on
+a `windows-credential-manager` binding; a migration that finds the marker
+already names `windows-dpapi-file` keeps every copy. Every migration failure is
+reported once to the runtime's report sink.
 
 **[CRED-B2] A DPAPI failure reads lost only when the item itself is gone.**
 Both Windows stores seal with DPAPI in user scope. A read maps its failure:
@@ -423,6 +521,23 @@ Both Windows stores seal with DPAPI in user scope. A read maps its failure:
 | `NTE_BAD_KEY_STATE`, `ERROR_INVALID_PASSWORD`, while a fresh canary sealed and unsealed with the same flags succeeds | `lost` |
 | `NTE_BAD_KEY_STATE`, `ERROR_INVALID_PASSWORD`, while the canary fails (profile not loaded, batch or S4U logon, roaming master key not yet synchronized) | `unavailable`; the record keeps its state |
 | any other failure | `unavailable` |
+
+The Keychain and Secret Service searches answer "no such item" for a locked
+store as well as for an absent item. A read maps that answer by a second signal
+from the same store:
+
+| Store answer on read | Outcome |
+|---|---|
+| `macos-keychain`: `errSecItemNotFound`, while a delete of an unwritten item succeeds and the canary item, of the credentials' accessibility class, reads back | `lost` |
+| `macos-keychain`: `errSecItemNotFound`, while the delete or the canary fails | `unavailable`; the record keeps its state |
+| `secret-service`: an empty search, while the default collection exists and is unlocked | `lost` |
+| `secret-service`: an empty search, while the default collection is missing, locked or answers malformed | `unavailable`; the record keeps its state |
+| either store: empty or wrong-typed item data | `unavailable` |
+
+Secret Service checks the default collection only. An item in another
+collection that disappears while the default collection is unlocked reads
+`lost`. The login Keychain re-checks the store's lock status in its native
+library before answering `errSecItemNotFound`.
 
 The native login-Keychain library constructor leaves process-wide Security UI
 unchanged. A dedicated background receiver disables file-Keychain interaction

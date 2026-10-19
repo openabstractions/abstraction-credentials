@@ -10,8 +10,8 @@ inline void require(bool ok,const char* what){if(!ok)throw api::ServiceError("in
 // secret bytes. No call is retried.
 class Holder {
 public:
- explicit Holder(std::string endpoint):transport_(std::move(endpoint),5000,1u<<20){}
- Holder(std::string endpoint,ipc::Deadline deadline):transport_(std::move(endpoint),deadline,1u<<20){}
+ explicit Holder(std::string endpoint):transport_(std::move(endpoint),ipc::kDefaultCallBudgetMs,ipc::kDefaultMaxFrame){}
+ Holder(std::string endpoint,ipc::Deadline deadline):transport_(std::move(endpoint),deadline,ipc::kDefaultMaxFrame){}
  Holder with_server_expectation(std::optional<ipc::ServerExpectation> server)const{auto copy=*this;copy.transport_=transport_.with_server_expectation(std::move(server));return copy;}
  Holder with_cancellation(ipc::CancellationToken token)const{auto copy=*this;copy.transport_=transport_.with_cancellation(std::move(token));return copy;}
  // The caller clears registration.secret after the call.
@@ -45,8 +45,8 @@ private: ipc::FrameTransport transport_;
 // designated as an enforcer receives anything but forbidden.
 class Applier {
 public:
- explicit Applier(std::string endpoint):transport_(std::move(endpoint),5000,1u<<20){}
- Applier(std::string endpoint,ipc::Deadline deadline):transport_(std::move(endpoint),deadline,1u<<20){}
+ explicit Applier(std::string endpoint):transport_(std::move(endpoint),ipc::kDefaultCallBudgetMs,ipc::kDefaultMaxFrame){}
+ Applier(std::string endpoint,ipc::Deadline deadline):transport_(std::move(endpoint),deadline,ipc::kDefaultMaxFrame){}
  Applier with_server_expectation(std::optional<ipc::ServerExpectation> server)const{auto copy=*this;copy.transport_=transport_.with_server_expectation(std::move(server));return copy;}
  Applier with_cancellation(ipc::CancellationToken token)const{auto copy=*this;copy.transport_=transport_.with_cancellation(std::move(token));return copy;}
  api::CheckResult check(const api::Use& usage)const{auto transport=transport_;api::ApplierClient<ipc::FrameTransport> client(transport);return client.check(usage);}

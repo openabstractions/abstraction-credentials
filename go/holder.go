@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	rightsclient "github.com/openabstractions/abstraction-rights/go/client"
+	cursorcodec "github.com/openabstractions/abstraction-watch/go/cursor"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,6 +22,7 @@ import (
 
 	wire "github.com/openabstractions/abstraction-credentials/go/abstraction/credentials/api"
 	identity "github.com/openabstractions/abstraction-identity"
+	"github.com/openabstractions/abstraction-identity/remote"
 )
 
 // Rights actions the holder and applier enforce, and their resources.
@@ -256,7 +259,7 @@ func (h *Holder) save() error {
 		err = closeErr
 	}
 	if err == nil {
-		err = os.Rename(name, h.cfg.StatePath)
+		err = retryStateRename(func() error { return os.Rename(name, h.cfg.StatePath) })
 	}
 	if err != nil {
 		//unchecked: best-effort temp-file cleanup on a path that already returns a definite error
@@ -359,7 +362,7 @@ func (h *Holder) storeKey(account, name, revision string) string {
 }
 
 // stamp spells the definition's rfc3339-micros write grammar.
-func stamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000000Z") }
+func stamp(t time.Time) string { return wire.FormatTimestamp(t) }
 
 func metadata(r *record) *wire.Metadata {
 	m := &wire.Metadata{Name: r.Name, Kind: r.Kind, Revision: r.Revision, State: r.State,
@@ -424,21 +427,21 @@ func (h *Holder) Store(caller wire.Subject, expected string, reg wire.Registrati
 // KindLocalKey, for caller's account. It is not reachable through holder@1.
 func (h *Holder) StoreLocalKey(caller wire.Subject, reg wire.Registration) wire.StoreResult {
 	if reg.Kind != KindLocalKey {
-		defer zero(reg.Secret)
+		defer clear(reg.Secret)
 		return wire.StoreResult{Outcome: wire.StoreOutcomeInvalid}
 	}
 	return h.register(caller, "", reg, true, nil, false)
 }
 
 func (h *Holder) register(caller wire.Subject, expected string, reg wire.Registration, localKey bool, guard AuthorizationGuard, scoped bool) wire.StoreResult {
-	defer zero(reg.Secret)
+	defer clear(reg.Secret)
 	refuse := func(outcome wire.StoreOutcome) wire.StoreResult { return wire.StoreResult{Outcome: outcome} }
-	if !validSubject(caller) || !namePattern.MatchString(reg.Name) || len(expected) > 128 ||
-		!unique(reg.Scope.Targets, 1, 16, validHost) || !unique(reg.Scope.Consumers, 1, 8, func(c string) bool { return consumerPattern.MatchString(c) }) {
+	if !validSubject(caller) || !ValidName(reg.Name) || len(expected) > 128 ||
+		!unique(reg.Scope.Targets, 1, 16, validHost) || !unique(reg.Scope.Consumers, 1, 8, ValidConsumer) {
 		return refuse(wire.StoreOutcomeInvalid)
 	}
 	if !localKey && !slices.Contains(SupportedKinds, reg.Kind) {
-		if ownedKind.MatchString(reg.Kind) {
+		if ValidKind(reg.Kind) {
 			return refuse(wire.StoreOutcomeUnsupportedKind)
 		}
 		return refuse(wire.StoreOutcomeInvalid)
@@ -539,10 +542,10 @@ func (h *Holder) Rotate(caller wire.Subject, expected string, rotation wire.Rota
 
 func (h *Holder) rotate(caller wire.Subject, expected string, rotation wire.Rotation, guard AuthorizationGuard, scoped bool) wire.RotateResult {
 	name, secret := rotation.Name, rotation.Secret
-	defer zero(secret)
+	defer clear(secret)
 	refuse := func(outcome wire.RotateOutcome) wire.RotateResult { return wire.RotateResult{Outcome: outcome} }
 	due, ok := h.validExpiry(rotation.Expires)
-	if !validSubject(caller) || !namePattern.MatchString(name) || expected == "" || len(expected) > 128 || !ok ||
+	if !validSubject(caller) || !ValidName(name) || expected == "" || len(expected) > 128 || !ok ||
 		len(secret) < 1 || len(secret) > MaxSecretBytes || !headerSafe(secret) {
 		return refuse(wire.RotateOutcomeInvalid)
 	}
@@ -613,7 +616,7 @@ func (h *Holder) Revoke(caller wire.Subject, expected, name string) wire.RevokeR
 }
 
 func (h *Holder) revoke(caller wire.Subject, expected, name string, guard AuthorizationGuard, scoped bool) wire.RevokeResult {
-	if !validSubject(caller) || !namePattern.MatchString(name) || expected == "" || len(expected) > 128 {
+	if !validSubject(caller) || !ValidName(name) || expected == "" || len(expected) > 128 {
 		return wire.RevokeResult{Outcome: wire.RevokeOutcomeInvalid}
 	}
 	h.mu.Lock()
@@ -684,14 +687,14 @@ func (h *Holder) ListAuthorized(account, cursor string, limit int64, guard Autho
 	}
 	after := ""
 	if cursor != "" {
-		parts := strings.SplitN(cursor, ".", 3)
-		if len(parts) != 3 {
+		envelope, ok := (cursorcodec.Codec{Separator: ".", Scoped: true}).Parse(cursor)
+		if !ok {
 			return refuse(wire.PageOutcomeInvalid)
 		}
-		if parts[0] != h.epoch || parts[1] != accountTag(account) {
+		if !envelope.Bound(h.epoch, accountTag(account)) {
 			return refuse(wire.PageOutcomeGap)
 		}
-		raw, err := hex.DecodeString(parts[2])
+		raw, err := hex.DecodeString(envelope.Payload)
 		if err != nil {
 			return refuse(wire.PageOutcomeInvalid)
 		}
@@ -722,7 +725,7 @@ func (h *Holder) ListAuthorized(account, cursor string, limit int64, guard Autho
 		page.Records = append(page.Records, *metadata(records[name]))
 	}
 	if !page.Complete {
-		page.Next = h.epoch + "." + accountTag(account) + "." + hex.EncodeToString([]byte(names[len(names)-1]))
+		page.Next = (cursorcodec.Codec{Separator: ".", Scoped: true}).Encode(cursorcodec.Envelope{Epoch: h.epoch, Scope: accountTag(account), Payload: hex.EncodeToString([]byte(names[len(names)-1]))})
 	}
 	return page
 }
@@ -741,15 +744,15 @@ func (h *Holder) AuditAuthorized(account, cursor string, maxEntries int64, guard
 	}
 	var after int64
 	if cursor != "" {
-		parts := strings.SplitN(cursor, ".", 3)
-		if len(parts) != 3 {
+		envelope, ok := (cursorcodec.Codec{Separator: ".", Scoped: true}).Parse(cursor)
+		if !ok {
 			return refuse(wire.PageOutcomeInvalid)
 		}
-		n, err := strconv.ParseInt(parts[2], 10, 64)
+		n, err := strconv.ParseInt(envelope.Payload, 10, 64)
 		if err != nil || n < 0 {
 			return refuse(wire.PageOutcomeInvalid)
 		}
-		if parts[0] != h.epoch || parts[1] != accountTag(account) {
+		if !envelope.Bound(h.epoch, accountTag(account)) {
 			return refuse(wire.PageOutcomeGap)
 		}
 		after = n
@@ -796,9 +799,9 @@ func (h *Holder) AuditAuthorized(account, cursor string, maxEntries int64, guard
 		page.Entries = append(page.Entries, entry)
 	}
 	if n := len(page.Entries); n > 0 {
-		page.Next = h.epoch + "." + accountTag(account) + "." + strconv.FormatInt(page.Entries[n-1].Sequence, 10)
+		page.Next = (cursorcodec.Codec{Separator: ".", Scoped: true}).Encode(cursorcodec.Envelope{Epoch: h.epoch, Scope: accountTag(account), Payload: strconv.FormatInt(page.Entries[n-1].Sequence, 10)})
 	} else if cursor == "" {
-		page.Next = h.epoch + "." + accountTag(account) + "." + strconv.FormatInt(oldest-1, 10)
+		page.Next = (cursorcodec.Codec{Separator: ".", Scoped: true}).Encode(cursorcodec.Envelope{Epoch: h.epoch, Scope: accountTag(account), Payload: strconv.FormatInt(oldest-1, 10)})
 	}
 	return page
 }
@@ -808,7 +811,7 @@ func (h *Holder) AuditAuthorized(account, cursor string, maxEntries int64, guard
 // verified, mismatch, unknown (no local key of that name), revoked, expired,
 // lost, or unavailable when the platform store cannot be read.
 func (h *Holder) VerifyLocalKey(account, name string, presented []byte) string {
-	if account == "" || !namePattern.MatchString(name) || len(presented) == 0 || len(presented) > MaxSecretBytes {
+	if account == "" || !ValidName(name) || len(presented) == 0 || len(presented) > MaxSecretBytes {
 		return "unknown"
 	}
 	h.mu.Lock()
@@ -829,7 +832,7 @@ func (h *Holder) VerifyLocalKey(account, name string, presented []byte) string {
 		return "unavailable"
 	}
 	held, err := backend.Get(key)
-	defer zero(held)
+	defer clear(held)
 	if errors.Is(err, ErrNotFound) {
 		h.mu.Lock()
 		if r := h.state.Accounts[account][name]; r != nil && r.Revision == revision && r.State == "active" {
@@ -921,7 +924,12 @@ func useRevision(r *record, scoped bool) string {
 }
 
 func validUse(use wire.Use) bool {
-	return validSubject(use.Subject) && consumerPattern.MatchString(use.Consumer) && namePattern.MatchString(use.Name) && validHost(use.Target) && len(use.Challenge) <= 4096
+	// Internal receiving hosts may apply for an admitted canonical remote
+	// program. Manager and reader actors retain validSubject's native proof.
+	subject := use.Subject
+	valid := validSubject(subject) || (subject.Account != "" && len(subject.Account) <= 128 &&
+		!strings.ContainsAny(subject.Account+subject.Program, "\x00\r\n") && remote.ValidSubjectProgram(subject.Program))
+	return valid && ValidConsumer(use.Consumer) && ValidName(use.Name) && validHost(use.Target) && len(use.Challenge) <= 4096
 }
 
 // useAuthorizationDetail accepts only evidence consistent with the same guard
@@ -933,8 +941,8 @@ func useAuthorizationDetail(v Authorization, decision AuthorizationOutcome) stri
 	}
 	switch decision {
 	case AuthorizationDenied:
-		switch v.RightsOutcome {
-		case "denied", "not_granted", "unknown_action":
+		outcome, _ := rightsclient.ParseDecisionOutcome(v.RightsOutcome)
+		if outcome != rightsclient.DecisionOutcomePermitted && rightsclient.Evaluated(outcome) {
 			return v.RightsOutcome
 		}
 	case AuthorizationUnavailable:
@@ -1022,9 +1030,10 @@ func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, rea
 		finish(wire.ApplyOutcomeUnknown, "", "")
 		return wire.ApplyOutcomeUnknown, "", nil
 	}
-	switch word {
-	case "permitted":
-	case "denied", "not_granted", "unknown_action":
+	outcome, _ := rightsclient.ParseDecisionOutcome(word)
+	switch {
+	case outcome == rightsclient.DecisionOutcomePermitted:
+	case rightsclient.Evaluated(outcome):
 		finish(wire.ApplyOutcomeNotPermitted, r.Revision, word)
 		return wire.ApplyOutcomeNotPermitted, r.Revision, nil
 	default:
@@ -1046,7 +1055,7 @@ func (h *Holder) evaluate(ctx context.Context, use wire.Use, decide Decider, rea
 		return wire.ApplyOutcomeUnavailable, r.Revision, nil
 	}
 	secret, err := backend.Get(r.Key)
-	defer zero(secret)
+	defer clear(secret)
 	if decision, detail := checkGuard(); decision != Authorized {
 		outcome := wire.ApplyOutcomeUnavailable
 		if decision == AuthorizationDenied {

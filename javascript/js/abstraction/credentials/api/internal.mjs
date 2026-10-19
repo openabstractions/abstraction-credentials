@@ -39,46 +39,14 @@ function strs(out, v, depth) {
 
 const isWs = (c) => c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d;
 
+// raw writes an opaque value's bytes as they are ([DEF-A3]).
 function raw(out, s, depth) {
   const b = typeof s === "string" ? ENC.encode(s) : s;
-  let i = 0;
-  while (i < b.length) {
-    const c = b[i];
-    if (isWs(c)) { i++; continue; }
-    if (c === 0x22) {
-      let j = i + 1;
-      while (j < b.length) {
-        if (b[j] === 0x5c) { j += 2; continue; }
-        if (b[j] === 0x22) { j++; break; }
-        j++;
-      }
-      for (let k = i; k < j; k++) out.byte(b[k]);
-      i = j;
-    } else if (c === 0x7b || c === 0x5b) {
-      out.byte(c);
-      i++;
-      let j = i;
-      while (j < b.length && isWs(b[j])) j++;
-      if (j < b.length && (b[j] === 0x7d || b[j] === 0x5d)) { out.byte(b[j]); i = j + 1; }
-      else { depth++; out.byte(0x0a); pad(out, depth); }
-    } else if (c === 0x7d || c === 0x5d) {
-      depth--;
-      out.byte(0x0a);
-      pad(out, depth);
-      out.byte(c);
-      i++;
-    } else if (c === 0x2c) {
-      out.ascii(",\n");
-      pad(out, depth);
-      i++;
-    } else if (c === 0x3a) {
-      out.ascii(": ");
-      i++;
-    } else {
-      out.byte(c);
-      i++;
-    }
-  }
+  // Whitespace around the value is not part of it.
+  let i = 0, j = b.length;
+  while (i < j && isWs(b[i])) i++;
+  while (j > i && isWs(b[j - 1])) j--;
+  for (let k = i; k < j; k++) out.byte(b[k]);
 }
 
 // A JavaScript string sorts by UTF-16 code unit, which puts U+1D11E before
@@ -1774,17 +1742,22 @@ function writeTimestamp(s) {
 }
 
 // Account identifier and normalized absolute executable path, the same shape as
-// abstraction.rights Subject. It is an assertion by the party that bound native
-// Program proof: the holder for registered_by and audit entries of holder
-// calls, the designated enforcer for Use.subject. It contains no proof.
+// abstraction.rights
+// [Subject](https://openabstractions.github.io/reference.html#concept-rights.subject).
+// It is an assertion by the party that bound native
+// [Program](https://openabstractions.github.io/reference.html#concept-identity.listener-program-need)
+// proof: the holder for registered_by and audit entries of holder calls, the
+// designated enforcer for Use.subject. It contains no proof.
 export function newSubject() {
   return { account: "", program: "" };
 }
 
-// targets: 1..16 lowercase host names, each covering itself and its subdomains;
-// no scheme, port, path or wildcard characters. consumers: 1..8 wire contract
-// names of services that may apply the credential. Both lists are exact; a host
-// or contract outside them is refused at Apply.
+// [Scope](https://openabstractions.github.io/reference.html#concept-credentials.credential-scope)
+// constrains credential use. targets: 1..16 lowercase host names, each covering
+// itself and its subdomains; no scheme, port, path or wildcard characters.
+// consumers: 1..8 wire contract names of services that may apply the
+// credential. Both lists are exact; a host or contract outside them is refused
+// at Apply.
 export function newScope() {
   return { targets: [], consumers: [] };
 }
@@ -1845,6 +1818,7 @@ export function newRevokeResult() {
   return { outcome: "", revision: "" };
 }
 
+// [Limits](https://openabstractions.github.io/reference.html#concept-credentials.holder-limits).
 // Provider-declared bounds, read through List. max_secret_bytes is at most 4096
 // and is lower where the configured store bounds it. secure_store names the
 // configured store: SecureStore names this version's standard backends,
@@ -4137,12 +4111,58 @@ export function decode(data) {
   return v;
 }
 
+const JSON_RECORDS = Object.freeze({
+  Subject: [writeSubject, readSubject],
+  Scope: [writeScope, readScope],
+  Metadata: [writeMetadata, readMetadata],
+  Registration: [writeRegistration, readRegistration],
+  Rotation: [writeRotation, readRotation],
+  StoreResult: [writeStoreResult, readStoreResult],
+  RotateResult: [writeRotateResult, readRotateResult],
+  RevokeResult: [writeRevokeResult, readRevokeResult],
+  Limits: [writeLimits, readLimits],
+  MetadataPage: [writeMetadataPage, readMetadataPage],
+  AuditEntry: [writeAuditEntry, readAuditEntry],
+  AuditPage: [writeAuditPage, readAuditPage],
+  Use: [writeUse, readUse],
+  CredentialResource: [writeCredentialResource, readCredentialResource],
+  CheckResult: [writeCheckResult, readCheckResult],
+  ApplyResult: [writeApplyResult, readApplyResult],
+  SecretValue: [writeSecretValue, readSecretValue],
+  SecretReadResult: [writeSecretReadResult, readSecretReadResult],
+  MetadataReadResult: [writeMetadataReadResult, readMetadataReadResult],
+});
+
+// toJson writes one record, named by kind, as JSON laid out as this module's
+// documents are and without the document terminator.
+export function toJson(kind, value) {
+  const codec = Object.hasOwn(JSON_RECORDS, kind) ? JSON_RECORDS[kind] : undefined;
+  if (codec === undefined) throw new TypeError("toJson takes a record name of this module, not " + String(kind));
+  const out = new Out();
+  codec[0](out, value, 0);
+  return out.bytes();
+}
+
+// fromJson reads one record, named by kind, from data; a refused input throws Refusal.
+export function fromJson(kind, data) {
+  const codec = Object.hasOwn(JSON_RECORDS, kind) ? JSON_RECORDS[kind] : undefined;
+  if (codec === undefined) throw new TypeError("fromJson takes a record name of this module, not " + String(kind));
+  const r = new Reader(data);
+  r.ws();
+  const v = codec[1](r);
+  r.ws();
+  if (r.pos < r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
 // refusals is in the order two of them are chosen between.
 const refusals = ["malformed", "bad_string", "number_spelling", "wrong_type", "bad_timestamp", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_binary", "bad_enum", "trailing_bytes"];
 
 function refusalRank(word) {
   return refusals.indexOf(word);
 }
+
+function _serviceClearDecodedBinary(value) { value.fill(0); }
 
 export class DispatchError extends Error {
   constructor(code) { super(code); this.name = "DispatchError"; this.code = code; }
@@ -4379,6 +4399,11 @@ export class SecretReaderClient {
     const _request = _serviceRequest("abstraction.credentials/reader@1", "Read", _payload);
     const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/reader@1", "Read");
     const _result = _serviceDecode(readOASecretReaderReadResult, _reply, 1);
+    if ((_result.value.outcome === "read") !== (_result.value.value !== undefined && _result.value.value !== null)){
+if(_result.value.value!==undefined&&_result.value.value!==null){
+_serviceClearDecodedBinary(_result.value.value.secret);
+}
+throw new ServiceError("invalid_result", "");}
     return _result.value;
   }
 }
@@ -4435,6 +4460,7 @@ export class ScopedHolderClient {
     const _request = _serviceRequest("abstraction.credentials/holder@2", "Metadata", _payload);
     const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.credentials/holder@2", "Metadata");
     const _result = _serviceDecode(readOAScopedHolderMetadataResult, _reply, 1);
+    if ((_result.value.outcome === "found") !== (_result.value.current !== undefined && _result.value.current !== null)) throw new ServiceError("invalid_result", "");
     return _result.value;
   }
 }

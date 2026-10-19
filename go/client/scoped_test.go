@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	credentials "github.com/openabstractions/abstraction-credentials/go"
+	"github.com/openabstractions/abstraction-credentials/go/internal/personfolders"
+	"os"
 	"testing"
 
 	wire "github.com/openabstractions/abstraction-credentials/go/abstraction/credentials/api"
@@ -60,20 +63,27 @@ func TestRawReadSDKClearsTransientFramesAndNeverFallsBack(t *testing.T) {
 }
 
 func TestRawReadReplyValidation(t *testing.T) {
+	if maxReadSecretBytes != credentials.MaxSecretBytes {
+		t.Fatal("reader/store bound drift")
+	}
 	valid := wire.SecretReadResult{Outcome: wire.SecretReadOutcomeRead, Value: &wire.SecretValue{Name: "alpha", Revision: "current", Secret: []byte("private")}}
-	if !validateRead(valid, "alpha") {
+	if !validateReadValue(valid.Value, "alpha") {
 		t.Fatal("valid reply refused")
 	}
-	for _, v := range []wire.SecretReadResult{
-		{Outcome: wire.SecretReadOutcomeRead},
-		{Outcome: wire.SecretReadOutcomeForbidden, Value: valid.Value},
-		{Outcome: wire.SecretReadOutcomeRead, Value: &wire.SecretValue{Name: "other", Revision: "current", Secret: []byte("private")}},
-		{Outcome: wire.SecretReadOutcomeRead, Value: &wire.SecretValue{Name: "alpha", Secret: []byte("private")}},
-		{Outcome: wire.SecretReadOutcomeRead, Value: &wire.SecretValue{Name: "alpha", Revision: "current"}},
-		{Outcome: wire.SecretReadOutcomeRead, Value: &wire.SecretValue{Name: "alpha", Revision: "current", Secret: make([]byte, 4097)}},
+	// Generated codecs own outcome/presence. Published reader@1 field constraints
+	// await its service window, so the compatibility reader retains those bounds.
+	for _, v := range []*wire.SecretValue{
+		nil,
+		{Name: "other", Revision: "current", Secret: []byte("private")},
+		{Name: "alpha", Secret: []byte("private")},
+		{Name: "alpha", Revision: "current"},
+		{Name: "alpha", Revision: "current", Secret: make([]byte, 4097)},
 	} {
-		if validateRead(v, "alpha") {
+		if validateReadValue(v, "alpha") {
 			t.Fatal("inconsistent read reply accepted")
 		}
 	}
 }
+
+// TestMain confines per-user folders to the canonical owned test fixture.
+func TestMain(m *testing.M) { os.Exit(personfolders.Main(m)) }

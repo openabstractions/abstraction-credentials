@@ -68,6 +68,7 @@ export {
   encodeSubject,
   encodeUse,
   executionGuarantees,
+  fromJson,
   newApplyResult,
   newAuditEntry,
   newAuditPage,
@@ -88,4 +89,5 @@ export {
   newSubject,
   newUse,
   resourceActions,
+  toJson,
 } from "./internal.mjs";

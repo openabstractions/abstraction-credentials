@@ -5,8 +5,8 @@ package service
 import (
 	"context"
 	"errors"
+	rightsclient "github.com/openabstractions/abstraction-rights/go/client"
 	"os/user"
-	"strconv"
 	"sync"
 	"time"
 
@@ -35,7 +35,7 @@ type Host struct {
 	cancel    context.CancelFunc
 	once      sync.Once
 	workers   sync.WaitGroup
-	slots     chan struct{}
+	slots     listen.CallAdmission
 	OnError   func(error)
 	// Assign before Serve. Called when admission stops, before calls drain.
 	OnStopped func()
@@ -65,7 +65,7 @@ func Listen(endpoint string, holder *credentials.Holder, decide credentials.Deci
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Host{listener: listen.Sessions(l, listen.SessionOptions{MaxSessions: 32}), owner: owner.Uid, holder: holder, decide: decide, enforcer: enforcer, ctx: ctx, cancel: cancel, slots: make(chan struct{}, 32)}, nil
+	return &Host{listener: listen.Sessions(l, listen.SessionOptions{MaxSessions: 32}), owner: owner.Uid, holder: holder, decide: decide, enforcer: enforcer, ctx: ctx, cancel: cancel, slots: listen.NewCallAdmission(32)}, nil
 }
 
 // ApplierAvailable reports whether an enforcer designation is configured.
@@ -103,29 +103,26 @@ func (h *Host) Serve(ctx context.Context) error {
 			}
 			return err
 		}
-		select {
-		case h.slots <- struct{}{}:
-		default:
-			//unchecked: dropping a connection because the worker slots are full; nothing here can act on a failed close of the connection it is already refusing
-			conn.Close()
+		release, admitted := h.slots.Take(conn)
+		if !admitted {
 			continue
 		}
 		h.workers.Add(1)
 		go func() {
 			defer h.workers.Done()
-			defer func() { <-h.slots }()
+			defer release()
 			defer conn.Close()
 			callCtx, cancel := context.WithTimeout(h.ctx, 5*time.Second)
 			defer cancel()
 			call, err := listen.ReceiveFramed(callCtx, conn, listen.Program, MaxFrameBytes)
 			if call != nil {
 				defer call.Close()
-				defer zero(call.Frame)
+				defer clear(call.Frame)
 			}
 			if err == nil {
 				base := receiver{host: h, call: call, ctx: callCtx}
 				reader := &secretReaderReceiver{receiver: base}
-				defer func() { zero(reader.value) }()
+				defer func() { clear(reader.value) }()
 				var reply []byte
 				reply, err = wire.ServeEndpoint(call.Frame, "openabstractions", "",
 					&wire.HolderDispatcher{Handler: &holderReceiver{base}},
@@ -133,7 +130,7 @@ func (h *Host) Serve(ctx context.Context) error {
 					&wire.SecretReaderDispatcher{Handler: reader},
 					&wire.ScopedHolderDispatcher{Handler: &scopedHolderReceiver{base}},
 					&wire.ScopedApplierDispatcher{Handler: &scopedApplierReceiver{applierReceiver{base}}})
-				defer zero(reply)
+				defer clear(reply)
 				if err == nil {
 					err = call.Reply(reply)
 				}
@@ -151,29 +148,14 @@ type receiver struct {
 	ctx  context.Context
 }
 
-// SubjectFromPeer binds account and program from Program proof.
+// SubjectFromPeer is identity.SubjectOf at listen.Program, in the credentials
+// contract's Subject.
 func SubjectFromPeer(peer *identity.Peer) (wire.Subject, error) {
-	if peer == nil {
-		return wire.Subject{}, errors.New("credentials service: native subject evidence required")
-	}
-	if err := peer.Check(listen.Program); err != nil {
-		return wire.Subject{}, err
-	}
-	u, err := peer.User.AtLeast(listen.Program.User)
+	s, err := identity.SubjectOf(peer, listen.Program)
 	if err != nil {
 		return wire.Subject{}, err
 	}
-	account := ""
-	if u.Kind == "windows" {
-		account = u.SID
-	} else if u.Kind == "posix" && u.UID >= 0 {
-		account = strconv.Itoa(u.UID)
-	}
-	program, err := identity.SubjectProgram(peer, listen.Program.Path)
-	if err != nil || account == "" {
-		return wire.Subject{}, errors.New("credentials service: native subject account/program unavailable")
-	}
-	return wire.Subject{Account: account, Program: program}, nil
+	return wire.Subject{Account: s.Account, Program: s.Program}, nil
 }
 
 func (r *receiver) caller() (wire.Subject, *identity.Peer, bool) {
@@ -181,11 +163,11 @@ func (r *receiver) caller() (wire.Subject, *identity.Peer, bool) {
 	if err != nil {
 		return wire.Subject{}, nil, false
 	}
-	subject, err := SubjectFromPeer(peer)
-	if err != nil || subject.Account != r.host.owner {
+	subject, verdict := identity.AdmitOwner(peer, listen.Program, r.host.owner)
+	if verdict != identity.OwnerAdmitted {
 		return wire.Subject{}, nil, false
 	}
-	return subject, peer, true
+	return wire.Subject{Account: subject.Account, Program: subject.Program}, peer, true
 }
 
 type holderReceiver struct{ receiver }
@@ -203,9 +185,10 @@ func (r *holderReceiver) authorize(action string) (wire.Subject, string) {
 		}
 		return wire.Subject{}, "unavailable"
 	}
-	switch word {
-	case "permitted":
-	case "denied", "not_granted", "unknown_action":
+	outcome, _ := rightsclient.ParseDecisionOutcome(word)
+	switch {
+	case outcome == rightsclient.DecisionOutcomePermitted:
+	case rightsclient.Evaluated(outcome):
 		return wire.Subject{}, "forbidden"
 	default:
 		return wire.Subject{}, "unavailable"
@@ -214,12 +197,6 @@ func (r *holderReceiver) authorize(action string) (wire.Subject, string) {
 		return wire.Subject{}, "forbidden"
 	}
 	return subject, ""
-}
-
-func zero(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
 }
 
 func storeRefusal(word string) wire.StoreOutcome {
@@ -262,7 +239,7 @@ func pageRefusal(word string) wire.PageOutcome {
 func (r *holderReceiver) Store(expected string, reg wire.Registration) (wire.StoreResult, error) {
 	subject, guard, refusal := r.legacyNamedAdmission(credentials.ActionManage, credentials.ActionSecretCreate, reg.Name)
 	if refusal != "" {
-		zero(reg.Secret)
+		clear(reg.Secret)
 		return wire.StoreResult{Outcome: storeRefusal(refusal)}, nil
 	}
 	result := r.host.holder.StoreNamedAuthorized(subject, expected, reg, guard)
@@ -277,7 +254,7 @@ func (r *holderReceiver) Store(expected string, reg wire.Registration) (wire.Sto
 func (r *holderReceiver) Rotate(expected string, rotation wire.Rotation) (wire.RotateResult, error) {
 	subject, guard, refusal := r.legacyNamedAdmission(credentials.ActionManage, credentials.ActionSecretRotate, rotation.Name)
 	if refusal != "" {
-		zero(rotation.Secret)
+		clear(rotation.Secret)
 		return wire.RotateResult{Outcome: rotateRefusal(refusal)}, nil
 	}
 	return r.host.holder.RotateNamedAuthorized(subject, expected, rotation, guard), nil
@@ -314,7 +291,7 @@ func (r *applierReceiver) designated(use wire.Use) bool {
 		return false
 	}
 	_, peer, ok := r.caller()
-	if !ok || use.Subject.Account != r.host.owner {
+	if !ok || use.Subject.Account != r.host.owner || !identity.ValidSubjectProgram(use.Subject.Program) {
 		return false
 	}
 	if !r.host.enforcer(r.ctx, peer, use.Consumer, use.Name) || r.ctx.Err() != nil {

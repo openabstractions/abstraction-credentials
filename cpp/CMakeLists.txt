@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(abstraction_credentials_api VERSION 0.1.0 LANGUAGES CXX)
+project(abstraction_credentials_api VERSION 0.8.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 # Generated holder and applier records, codecs and clients, and the typed
@@ -28,5 +28,5 @@ install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 set(config_dir ${CMAKE_INSTALL_LIBDIR}/cmake/abstraction_credentials_api)
 install(EXPORT abstraction_credentials_apiTargets NAMESPACE abstraction:: DESTINATION ${config_dir})
 configure_package_config_file(cmake/abstraction_credentials_apiConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfig.cmake INSTALL_DESTINATION ${config_dir})
-write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfigVersion.cmake VERSION 0.1.0 COMPATIBILITY SameMinorVersion)
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfigVersion.cmake VERSION 0.8.0 COMPATIBILITY SameMinorVersion)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/abstraction_credentials_apiConfigVersion.cmake DESTINATION ${config_dir})

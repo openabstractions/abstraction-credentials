@@ -46,53 +46,9 @@ def _strs(out, v, depth):
 
 
 def _raw(out, s, depth):
-    b = s.encode("utf-8") if isinstance(s, str) else s
-    i, n = 0, len(b)
-    while i < n:
-        c = b[i]
-        if c in _WS:
-            i += 1
-        elif c == 0x22:
-            j = i + 1
-            while j < n:
-                if b[j] == 0x5C:
-                    j += 2
-                    continue
-                if b[j] == 0x22:
-                    j += 1
-                    break
-                j += 1
-            out += b[i:j]
-            i = j
-        elif c in (0x7B, 0x5B):
-            out.append(c)
-            i += 1
-            j = i
-            while j < n and b[j] in _WS:
-                j += 1
-            if j < n and b[j] in (0x7D, 0x5D):
-                out.append(b[j])
-                i = j + 1
-            else:
-                depth += 1
-                out += b"\n"
-                _pad(out, depth)
-        elif c in (0x7D, 0x5D):
-            depth -= 1
-            out += b"\n"
-            _pad(out, depth)
-            out.append(c)
-            i += 1
-        elif c == 0x2C:
-            out += b",\n"
-            _pad(out, depth)
-            i += 1
-        elif c == 0x3A:
-            out += b": "
-            i += 1
-        else:
-            out.append(c)
-            i += 1
+    # An opaque value's bytes as they are ([DEF-A3]).
+    # Whitespace around the value is not part of it.
+    out += (s.encode("utf-8") if isinstance(s, str) else bytes(s)).strip(bytes(_WS))
 
 
 def _rawmap(out, m, depth):
@@ -290,9 +246,12 @@ CONSUMERS = ["abstraction.download/http-execution@1", "abstraction.model/resolve
 @dataclasses.dataclass(kw_only=True)
 class Subject:
     """Account identifier and normalized absolute executable path, the same shape
-    as abstraction.rights Subject. It is an assertion by the party that bound
-    native Program proof: the holder for registered_by and audit entries of
-    holder calls, the designated enforcer for Use.subject. It contains no proof."""
+    as abstraction.rights
+    [Subject](https://openabstractions.github.io/reference.html#concept-rights.subject).
+    It is an assertion by the party that bound native
+    [Program](https://openabstractions.github.io/reference.html#concept-identity.listener-program-need)
+    proof: the holder for registered_by and audit entries of holder calls, the
+    designated enforcer for Use.subject. It contains no proof."""
 
     account: str = ""
     program: str = ""
@@ -300,10 +259,12 @@ class Subject:
 
 @dataclasses.dataclass(kw_only=True)
 class Scope:
-    """targets: 1..16 lowercase host names, each covering itself and its
-    subdomains; no scheme, port, path or wildcard characters. consumers: 1..8
-    wire contract names of services that may apply the credential. Both lists
-    are exact; a host or contract outside them is refused at Apply."""
+    """[Scope](https://openabstractions.github.io/reference.html#concept-credentials.credential-scope)
+    constrains credential use. targets: 1..16 lowercase host names, each
+    covering itself and its subdomains; no scheme, port, path or wildcard
+    characters. consumers: 1..8 wire contract names of services that may apply
+    the credential. Both lists are exact; a host or contract outside them is
+    refused at Apply."""
 
     targets: list[str] = dataclasses.field(default_factory=list)
     consumers: list[str] = dataclasses.field(default_factory=list)
@@ -402,7 +363,8 @@ class RevokeResult:
 
 @dataclasses.dataclass(kw_only=True)
 class Limits:
-    """Provider-declared bounds, read through List. max_secret_bytes is at most
+    """[Limits](https://openabstractions.github.io/reference.html#concept-credentials.holder-limits).
+    Provider-declared bounds, read through List. max_secret_bytes is at most
     4096 and is lower where the configured store bounds it. secure_store names
     the configured store: SecureStore names this version's standard backends,
     provider extensions are retained, and refusal-page zero limits carry the
@@ -4622,6 +4584,54 @@ def decode(data):
     return v
 
 
+_JSON_RECORDS = {
+    Subject: (_write_subject, _read_subject),
+    Scope: (_write_scope, _read_scope),
+    Metadata: (_write_metadata, _read_metadata),
+    Registration: (_write_registration, _read_registration),
+    Rotation: (_write_rotation, _read_rotation),
+    StoreResult: (_write_store_result, _read_store_result),
+    RotateResult: (_write_rotate_result, _read_rotate_result),
+    RevokeResult: (_write_revoke_result, _read_revoke_result),
+    Limits: (_write_limits, _read_limits),
+    MetadataPage: (_write_metadata_page, _read_metadata_page),
+    AuditEntry: (_write_audit_entry, _read_audit_entry),
+    AuditPage: (_write_audit_page, _read_audit_page),
+    Use: (_write_use, _read_use),
+    CredentialResource: (_write_credential_resource, _read_credential_resource),
+    CheckResult: (_write_check_result, _read_check_result),
+    ApplyResult: (_write_apply_result, _read_apply_result),
+    SecretValue: (_write_secret_value, _read_secret_value),
+    SecretReadResult: (_write_secret_read_result, _read_secret_read_result),
+    MetadataReadResult: (_write_metadata_read_result, _read_metadata_read_result),
+}
+
+
+def to_json(value):
+    """One record as JSON bytes, laid out as this module's documents are and
+    without the document terminator."""
+    codec = _JSON_RECORDS.get(type(value))
+    if codec is None:
+        raise TypeError("to_json takes a record of this module, not %s" % type(value).__name__)
+    out = bytearray()
+    codec[0](out, value, 0)
+    return bytes(out)
+
+
+def from_json(kind, data):
+    """Read one record of class kind from data; a refused input raises Refusal."""
+    codec = _JSON_RECORDS.get(kind)
+    if codec is None:
+        raise TypeError("from_json takes a record class of this module, not %r" % (kind,))
+    r = _Reader(bytes(data))
+    r.ws()
+    v = codec[1](r)
+    r.ws()
+    if r.pos < len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
 # _REFUSALS is in the order two of them are chosen between.
 
 _REFUSALS = ["malformed", "bad_string", "number_spelling", "wrong_type", "bad_timestamp", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_binary", "bad_enum", "trailing_bytes"]
@@ -4947,9 +4957,11 @@ class Applier:
 
     def apply(self, usage: Use) -> ApplyResult:
         """Read the secret for one outgoing request. Only an explicitly designated
-        enforcer program, bound by native Program proof, is accepted;
-        same-account access alone is forbidden. The holder rechecks rights on
-        every call and never caches a decision or a value across calls."""
+        enforcer program, bound by native
+        [Program](https://openabstractions.github.io/reference.html#concept-identity.listener-program-need)
+        proof, is accepted; same-account access alone is forbidden. The holder
+        rechecks rights on every call and never caches a decision or a value
+        across calls."""
         raise NotImplementedError
 
 
@@ -5016,6 +5028,8 @@ class SecretReaderClient(SecretReader):
         _request = _service_request("abstraction.credentials/reader@1", "Read", _arguments)
         _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/reader@1", "Read")
         _result = _service_decode(_read_oa_secret_reader_read_result, _payload, 1)
+        if (_result.value.outcome == "read") != (_result.value.value is not None):
+            raise ServiceError("invalid_result", "")
         return _result.value
 
 
@@ -5112,6 +5126,8 @@ class ScopedHolderClient(ScopedHolder):
         _request = _service_request("abstraction.credentials/holder@2", "Metadata", _arguments)
         _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.credentials/holder@2", "Metadata")
         _result = _service_decode(_read_oa_scoped_holder_metadata_result, _payload, 1)
+        if (_result.value.outcome == "found") != (_result.value.current is not None):
+            raise ServiceError("invalid_result", "")
         return _result.value
 
 

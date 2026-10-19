@@ -33,6 +33,26 @@ var (
 	ErrUnsupportedPlatform = errors.New("credentials: backend unsupported on this platform")
 )
 
+// confirmNotFound reads a store's "no such item" answer as ErrNotFound only
+// when probe, a second answer from the same store, shows it unlocked and
+// entitled: the Keychain reads its canary item back, Secret Service finds the
+// default collection unlocked. A store whose lookup cannot tell an absent item from
+// a locked, replaced or unentitled store (Keychain, Secret Service) calls it
+// before answering ErrNotFound, which a holder records as lost. A failed probe
+// wraps ErrUnavailable and the record keeps its state.
+func confirmNotFound(probe func() error) error {
+	if probe == nil {
+		return fmt.Errorf("%w: not-found answer without a store probe", ErrUnavailable)
+	}
+	if err := probe(); err != nil {
+		if errors.Is(err, ErrUnavailable) {
+			return err
+		}
+		return fmt.Errorf("%w: store probe: %v", ErrUnavailable, err)
+	}
+	return ErrNotFound
+}
+
 // Secure store words reported in Limits.secure_store.
 const (
 	StoreWindowsCredentialManager = "windows-credential-manager"
@@ -72,9 +92,3 @@ func (u unreachable) err() error                 { return fmt.Errorf("%w: %v", E
 func (u unreachable) Put(string, []byte) error   { return u.err() }
 func (u unreachable) Get(string) ([]byte, error) { return nil, u.err() }
 func (u unreachable) Delete(string) error        { return u.err() }
-
-func zero(b []byte) {
-	for i := range b {
-		b[i] = 0
-	}
-}

@@ -2,6 +2,38 @@
 
 Linked from [CONTRACT.md](CONTRACT.md)'s "Reading this page."
 
+## 0.8.0 remote credential use
+
+Internal Check and Apply accept a canonical remote leaf-key subject under
+the receiving account and explicit credential permission. The native applier
+RPC retains native subject binding. Store, Rotate, Revoke, Metadata and raw
+Read retain native manager/reader subjects. Registration provenance remains
+native; a remote Use audit entry keeps its canonical remote program.
+
+## 0.8.0 contract truth pass (W0-02, 2026-10-21)
+
+- Opening paragraph: outdated rule. It states three authorities, management,
+  raw Read (CRED-S2) and use (credentials audit 3.1 item 4).
+- Consumers table gains `abstraction.router/router@1`: outdated rule (audit
+  3.1 item 1).
+- The `consumers` seed and the `SecureStore` enum in `credentials.thrift`
+  lag the source (six consumer rows, two store words): code defect, TODO.md
+  repair row with W1-23a. `abstraction.inference/image@1` without a declared
+  consumer: code defect, a TODO.md repair row. "Not built" names each
+  missing entry and points at its row; the contract body states neither.
+- Not built names missing artifacts; the former lines are scope statements
+  and moved to "Scope". Store selection is this module's
+  (`go/select.go` `OpenPlatformStore`, `go/select_choice.go`
+  `WriteLinuxStoreChoice`; `serve` only calls `OpenPlatformStore`), and Not
+  built names no gap there. README versions and service table: outdated
+  (audit 3.1 item 5); Obtain names the `go/v*` tag series.
+- `catalogue_test.go` keeps the Consumers table, the generated seed
+  `Consumers` and the store words in step with the source: a declared
+  consumer outside the seed, or a store word outside `SecureStore`, must be
+  named in Not built. Both tests fail against the contract before this pass.
+  `SecureStore` membership itself waits for the enum change (TODO.md,
+  W1-23a).
+
 ## Superseded ids
 
 None retired this release. `CRED-H1`..`CRED-H6` and `CRED-A1`..`CRED-A6`

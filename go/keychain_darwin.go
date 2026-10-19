@@ -58,7 +58,7 @@ static OSStatus oa_get(const char *key, unsigned char **out, long *length) {
 	if (st != errSecSuccess) return st;
 	if (result == NULL || CFGetTypeID(result) != CFDataGetTypeID()) {
 		if (result != NULL) CFRelease(result);
-		return errSecItemNotFound;
+		return errSecDecode;
 	}
 	long n = CFDataGetLength((CFDataRef)result);
 	if (n > 0) {
@@ -150,16 +150,54 @@ type keychain struct{}
 // an item nobody writes and returns an error wrapping ErrUnavailable for such a
 // program, so a runtime configures the store as unreachable.
 func NewKeychain() (Backend, error) {
+	if err := keychainProbe(); err != nil {
+		return nil, err
+	}
+	return keychain{}, nil
+}
+
+// keychainProbe is the second signal before an item reads as absent. It
+// deletes an item nobody writes, which shows the entitlement, then reads the
+// canary item with its data, which shows the store can decrypt items of the
+// credentials' accessibility class. Any failure wraps ErrUnavailable.
+func keychainProbe() error {
 	var nonce [8]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
-		return nil, fmt.Errorf("%w: entitlement probe: %v", ErrUnavailable, err)
+		return fmt.Errorf("%w: entitlement probe: %v", ErrUnavailable, err)
 	}
 	ckey := C.CString("entitlement-probe/" + hex.EncodeToString(nonce[:]))
 	defer C.free(unsafe.Pointer(ckey))
-	if st := C.oa_delete(ckey); st == C.errSecMissingEntitlement {
-		return nil, fmt.Errorf("%w: SecItemDelete: OSStatus %d: this program has no keychain access group entitlement, which the data protection keychain requires", ErrUnavailable, int(st))
+	if err := keychainDeleteProbe(int32(C.oa_delete(ckey))); err != nil {
+		return err
 	}
-	return keychain{}, nil
+	return keychainCanary(keychainRead(keychainCanaryKey), func() int32 {
+		return keychainWrite(keychainCanaryKey, []byte(keychainCanaryValue))
+	})
+}
+
+// keychainRead returns a reader of one item's status and data.
+func keychainRead(key string) func() (int32, []byte) {
+	return func() (int32, []byte) {
+		ckey := C.CString(key)
+		defer C.free(unsafe.Pointer(ckey))
+		var out *C.uchar
+		var length C.long
+		st := C.oa_get(ckey, &out, &length)
+		if out == nil {
+			return int32(st), nil
+		}
+		defer C.free(unsafe.Pointer(out))
+		blob := unsafe.Slice((*byte)(unsafe.Pointer(out)), int(length))
+		data := append([]byte(nil), blob...)
+		clear(blob)
+		return int32(st), data
+	}
+}
+
+func keychainWrite(key string, secret []byte) int32 {
+	ckey := C.CString(key)
+	defer C.free(unsafe.Pointer(ckey))
+	return int32(C.oa_put(ckey, (*C.uchar)(unsafe.Pointer(&secret[0])), C.long(len(secret))))
 }
 
 func (keychain) Name() string        { return StoreMacOSKeychain }
@@ -182,25 +220,8 @@ func (keychain) Put(key string, secret []byte) error {
 }
 
 func (keychain) Get(key string) ([]byte, error) {
-	ckey := C.CString(key)
-	defer C.free(unsafe.Pointer(ckey))
-	var out *C.uchar
-	var length C.long
-	st := C.oa_get(ckey, &out, &length)
-	if st == C.errSecItemNotFound {
-		return nil, ErrNotFound
-	}
-	if st != C.errSecSuccess {
-		return nil, keychainStatus("SecItemCopyMatching", st)
-	}
-	if out == nil || length <= 0 {
-		return nil, ErrNotFound
-	}
-	defer C.free(unsafe.Pointer(out))
-	blob := unsafe.Slice((*byte)(unsafe.Pointer(out)), int(length))
-	secret := append([]byte(nil), blob...)
-	zero(blob)
-	return secret, nil
+	st, data := keychainRead(key)()
+	return keychainGetResult(st, data, keychainProbe)
 }
 
 func (keychain) Delete(key string) error {

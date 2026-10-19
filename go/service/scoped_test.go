@@ -132,7 +132,7 @@ func testScopedNativeCalls(t *testing.T, endpoint string, self wire.Subject, set
 	if e != nil || r.Outcome != wire.SecretReadOutcomeRead || r.Value == nil || r.Value.Name != "alpha" || r.Value.Revision != stored.Revision || !bytes.Equal(r.Value.Secret, []byte(secret)) {
 		t.Fatal("native requester did not receive current named value")
 	}
-	zero(r.Value.Secret)
+	clear(r.Value.Secret)
 	if r, e := reader.Read(context.Background(), "absent"); e != nil || r.Outcome != wire.SecretReadOutcomeForbidden || r.Value != nil {
 		t.Fatal("grant for alpha implied another name")
 	}
@@ -185,7 +185,7 @@ func testScopedNativeCalls(t *testing.T, endpoint string, self wire.Subject, set
 	if r, e := reader.Read(context.Background(), "alpha"); e != nil || r.Value == nil || r.Value.Revision != rotated.Revision {
 		t.Fatal("Read ignored current slot revision")
 	} else {
-		zero(r.Value.Secret)
+		clear(r.Value.Secret)
 	}
 	if r, e := scoped.Revoke(context.Background(), rotated.Revision, "alpha"); e != nil || r.Outcome != wire.RevokeOutcomeRevoked {
 		t.Fatal("scoped revoke failed")

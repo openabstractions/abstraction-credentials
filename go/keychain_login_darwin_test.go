@@ -129,19 +129,19 @@ func TestLoginKeychainNativeCRUD(t *testing.T) {
 	created = true
 	secret, err := b.Get(key)
 	if err != nil || string(secret) != "native dummy one" {
-		zero(secret)
+		clear(secret)
 		t.Fatalf("created dummy read verification failed: %v", err)
 	}
-	zero(secret)
+	clear(secret)
 	if err := b.Put(key, []byte("native dummy two")); err != nil {
 		t.Fatal(err)
 	}
 	secret, err = b.Get(key)
 	if err != nil || string(secret) != "native dummy two" {
-		zero(secret)
+		clear(secret)
 		t.Fatalf("updated dummy read verification failed: %v", err)
 	}
-	zero(secret)
+	clear(secret)
 	if err := b.Delete(key); err != nil {
 		t.Fatal(err)
 	}

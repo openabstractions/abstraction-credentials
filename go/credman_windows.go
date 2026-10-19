@@ -186,6 +186,15 @@ func (credentialManager) Put(key string, secret []byte) error {
 	return nil
 }
 
+// Native calls remain at this boundary; tests replace them with inert answers.
+var credentialRead = func(target *uint16, cred **credentialW) error {
+	if r, _, e := procCredReadW.Call(uintptr(unsafe.Pointer(target)), credTypeGeneric, 0, uintptr(unsafe.Pointer(cred))); r == 0 {
+		return e
+	}
+	return nil
+}
+var credentialFree = func(cred *credentialW) { procCredFree.Call(uintptr(unsafe.Pointer(cred))) }
+
 func (credentialManager) Get(key string) ([]byte, error) {
 	target, err := windows.UTF16PtrFromString(key)
 	if err != nil {
@@ -197,7 +206,7 @@ func (credentialManager) Get(key string) ([]byte, error) {
 	}
 	defer unlock()
 	var cred *credentialW
-	if r, _, e := procCredReadW.Call(uintptr(unsafe.Pointer(target)), credTypeGeneric, 0, uintptr(unsafe.Pointer(&cred))); r == 0 {
+	if e := credentialRead(target, &cred); e != nil {
 		if errors.Is(e, windows.ERROR_NOT_FOUND) {
 			return nil, ErrNotFound
 		}
@@ -211,13 +220,18 @@ func (credentialManager) Get(key string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("%w: CredReadW: %v", ErrUnavailable, e)
 	}
-	defer procCredFree.Call(uintptr(unsafe.Pointer(cred)))
-	if cred.CredentialBlobSize == 0 || cred.CredentialBlob == nil {
-		return nil, ErrNotFound
+	if cred == nil {
+		return nil, fmt.Errorf("%w: CredReadW returned no credential", ErrUnavailable)
+	}
+	defer credentialFree(cred)
+	// A successful generic read supplies application-defined bytes. The native
+	// API gives no absence or decryption-failure proof for an empty/malformed blob.
+	if cred.CredentialBlobSize == 0 || cred.CredentialBlob == nil || cred.CredentialBlobSize > credentialManagerMaxBlob {
+		return nil, fmt.Errorf("%w: CredReadW returned invalid data", ErrUnavailable)
 	}
 	blob := unsafe.Slice(cred.CredentialBlob, cred.CredentialBlobSize)
 	secret := append([]byte(nil), blob...)
-	zero(blob)
+	clear(blob)
 	return secret, nil
 }
 

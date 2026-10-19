@@ -1,5 +1,11 @@
 # abstraction-credentials
 
+Published holder@1/holder@2 and applier@1/applier@2 retain their original
+`Registration`, `Rotation`, `Scope` and `Use` codec inputs. Their existing
+Holder validation returns typed `invalid` results before secret/storage
+effects. The explicitly selected scoped services retain their native caller,
+designated enforcer and typed permission checks at the same receiving owners.
+
 *For applications that name a stored key on a call. Operators store keys as
 [Register and use a credential](#register-and-use-a-credential) shows.*
 
@@ -31,9 +37,25 @@ Panel's Credentials page. No other path stores one: the CLI refuses a secret
 in a command argument and reads it from a terminal with echo off or from
 standard input.
 
-An application holds a name, for example `openrouter`. It names that
-credential on the call it makes; it never reads the value back. A hosted
-inference call names the credential on the request:
+An application holds a name, for example `github-download`. The labelled
+[private release fixture](#private-release-download-fixture) puts it on a
+download request, alongside ordinary artifact identity:
+
+```go
+spec := request.Encode(&request.Request{
+	Artifact: request.Artifact{Size: expectedBytes, Digest: expectedDigest},
+	Sources: []request.Source{{Scheme: "http", Locator: assetURL, Credential: "github-download"}},
+})
+submission := api.Submission{Identity: retainedIdentity, Kind: "download", Spec: spec,
+	RequiredGuarantees: append(slices.Clone(api.AdmissionGuarantees), request.ScopedCredentialGuarantees...)}
+```
+
+The full fixture uses the public facade and Job clients to submit, reconcile,
+observe and copy a verified bounded result. The app requests downloads and never
+reads or manages credential values. Permission and host scope are checked by
+the receiving services on the explicit `credentials@2` route.
+
+A hosted inference application can likewise name `openrouter` on its request:
 
 ```go
 package main
@@ -86,21 +108,23 @@ calls (`Store`, `Rotate`, `Revoke`, `List`, `Audit`) and `not_permitted`,
 outcome is a word, never an explanation; the application logs the outcome
 and tells the person to register or scope the credential.
 
-**macOS.** Current source binds protected calls to Program proof over XPC.
-The Unix-socket path still refuses calls requiring that proof. The published
-0.2.0 package predates XPC support; its protected calls remain unqualified.
+**macOS.** Current source binds protected calls to [Program](https://openabstractions.github.io/reference.html#concept-identity.listener-program-need) proof over XPC.
+The Unix-socket path still refuses calls requiring that proof. Of the published
+`go/v*` tags, `go/v0.3.0` is the first whose tree carries XPC; protected calls
+through `go/v0.2.0` and earlier remain unqualified.
 
 ## Obtain
 
 - **Go.** `go get github.com/openabstractions/abstraction-credentials/go`.
-  The module has a `go/v0.1.0` tag; current source may contain later work.
+  The module is published under `go/v*` tags, and `go get` resolves the
+  newest; current source may contain later work.
   Standard library plus
   [abstraction-identity](https://github.com/openabstractions/abstraction-identity)
   (which brings `golang.org/x/sys`).
 - **Other languages.** See generated protocol and shared transport/client packages
   in this repository and the facade. Native provider support is separate.
 
-Applications resolve the credential manager and the applier through the
+Applications resolve the credential manager and the [applier](https://openabstractions.github.io/reference.html#concept-credentials.applier-service) through the
 facade's `ResolveCredentials` and `ResolveCredentialsApplier`, the same way
 every other capability resolves. An application holding no operator right
 calls neither: it names a registered credential on the request of the
@@ -114,6 +138,38 @@ Install the runtime first: https://openabstractions.org/adopt.html
 
 The CLI reads values from a terminal with echo disabled or from standard input.
 It refuses a secret in command arguments.
+
+### Private release download fixture
+
+The labelled P-K1 adopter in
+[`private-release-download`](https://github.com/openabstractions/abstractions/tree/main/examples/rights-playground/cmd/private-release-download)
+uses the public download/Job APIs. Its request carries a credential name and
+the expected artifact size and digest. The runtime applies the saved value;
+the app has no credential reader, registration, or value input.
+
+An authorized operator registers a source-host token through the existing CLI:
+
+```console
+openabstractions credentials add github-download \
+  --target api.github.com \
+  --for abstraction.download/http-execution@1 \
+  --from-stdin
+```
+
+Permit the app's named Use through the current typed permission controls and
+select a runtime offering `abstraction.download/credentials@2`. Registration
+alone grants no application permission. The Credentials page's **GitHub private
+downloads** row saves or replaces this same host-bound credential; it creates no
+model server or spending budget. A redirect outside the bound host receives no
+Authorization header. A private asset on that other host may consequently refuse.
+
+The fixture README describes the isolated dummy source/operator setup and the
+explicit runtime, epoch/key, artifact, and output arguments. Reconcile uncertain
+admission with the same identity. Rotate the name through the operator API to
+replace its value; revoke it to stop later applications. Source fixture checks
+are separate from real-account, hosted, macOS, and installed acceptance.
+
+### Hosted model use
 
 ```console
 openabstractions credentials add openrouter \
@@ -166,7 +222,10 @@ a tombstone and stops later applications before provider I/O.
 | Contract | Used by |
 | --- | --- |
 | `abstraction.credentials/holder@1` (prose name credential manager) | User or operator registration, listing, rotation, revocation and audit |
-| `abstraction.credentials/applier@1` | A designated service applying one named credential to one target |
+| [`abstraction.credentials/applier@1`](https://openabstractions.github.io/reference.html#concept-credentials.applier-service) | A designated service applying one named credential to one target |
+| `abstraction.credentials/holder@2` | Management of saved application secrets under typed named-secret permissions |
+| `abstraction.credentials/applier@2` | Applying a named secret under typed named-use permissions |
+| `abstraction.credentials/reader@1` | A granted program reading one named secret's value (CRED-S2) |
 
 [CONTRACT.md](CONTRACT.md) defines validation, authorization, expiry, audit and
 failure behavior. [credentials.thrift](credentials.thrift) is the schema. The
@@ -186,7 +245,8 @@ macOS Keychain with cgo. A credential manager with no backend returns `no_secure
 Machine-wide runtimes also return `no_secure_store` because these stores are
 per-account.
 
-`service.Listen` serves Holder and Applier over shared framed IPC. Every call is
+`service.Listen` serves Holder and the [credential applier service](https://openabstractions.github.io/reference.html#concept-credentials.applier-service)
+over shared framed IPC. Every call is
 authorized. Check and Apply additionally require an enforcer designation for
 the calling service. `client.Holder` and `client.Applier`
 (`github.com/openabstractions/abstraction-credentials/go/client`) are typed
@@ -195,10 +255,11 @@ Go clients.
 ## Current limits
 
 - Current provider source includes development work beyond the tagged Go
-  module; check `go/v0.1.0` for its released behavior.
+  module; check the newest `go/v*` tag for its released behavior.
 - Protected IPC calls require trustworthy program identity. Current macOS
   source supplies it over XPC; the Unix-socket path fails closed. Native XPC
-  evidence does not qualify the published 0.2.0 package.
+  evidence qualifies no `go/v*` tag before `go/v0.3.0`, the first whose tree
+  carries XPC.
 - The explicit Linux file backend protects a controlled state directory with
   file permissions. Operators choose it deliberately; it is not the production
   secure-store default.

@@ -13,7 +13,7 @@ export declare class ApplierClient {
   constructor(transport: FrameTransport);
   /** Evaluate whether Apply would succeed for this use, for admission and adopter preflight. Same designation and policy as Apply; reads no secret; appends a checked or refused audit entry. */
   check(usage: Use): Promise<CheckResult>;
-  /** Read the secret for one outgoing request. Only an explicitly designated enforcer program, bound by native Program proof, is accepted; same-account access alone is forbidden. The holder rechecks rights on every call and never caches a decision or a value across calls. */
+  /** Read the secret for one outgoing request. Only an explicitly designated enforcer program, bound by native [Program](https://openabstractions.github.io/reference.html#concept-identity.listener-program-need) proof, is accepted; same-account access alone is forbidden. The holder rechecks rights on every call and never caches a decision or a value across calls. */
   apply(usage: Use): Promise<ApplyResult>;
 }
 
@@ -113,6 +113,30 @@ export declare class HolderClient {
 
 export declare const HolderService: Readonly<{ wireName: "abstraction.credentials/holder@1"; Client: typeof HolderClient }>;
 
+// JsonRecords maps each record name toJson and fromJson take to its type.
+export interface JsonRecords {
+  Subject: Subject;
+  Scope: Scope;
+  Metadata: Metadata;
+  Registration: Registration;
+  Rotation: Rotation;
+  StoreResult: StoreResult;
+  RotateResult: RotateResult;
+  RevokeResult: RevokeResult;
+  Limits: Limits;
+  MetadataPage: MetadataPage;
+  AuditEntry: AuditEntry;
+  AuditPage: AuditPage;
+  Use: Use;
+  CredentialResource: CredentialResource;
+  CheckResult: CheckResult;
+  ApplyResult: ApplyResult;
+  SecretValue: SecretValue;
+  SecretReadResult: SecretReadResult;
+  MetadataReadResult: MetadataReadResult;
+}
+
+// [Limits](https://openabstractions.github.io/reference.html#concept-credentials.holder-limits).
 // Provider-declared bounds, read through List. max_secret_bytes is at most 4096
 // and is lower where the configured store bounds it. secure_store names the
 // configured store: SecureStore names this version's standard backends,
@@ -232,10 +256,12 @@ export interface Rotation {
   secret: Uint8Array;
 }
 
-// targets: 1..16 lowercase host names, each covering itself and its subdomains;
-// no scheme, port, path or wildcard characters. consumers: 1..8 wire contract
-// names of services that may apply the credential. Both lists are exact; a host
-// or contract outside them is refused at Apply.
+// [Scope](https://openabstractions.github.io/reference.html#concept-credentials.credential-scope)
+// constrains credential use. targets: 1..16 lowercase host names, each covering
+// itself and its subdomains; no scheme, port, path or wildcard characters.
+// consumers: 1..8 wire contract names of services that may apply the
+// credential. Both lists are exact; a host or contract outside them is refused
+// at Apply.
 export interface Scope {
   targets: string[];
   consumers: string[];
@@ -338,9 +364,12 @@ export interface StoreResult {
 }
 
 // Account identifier and normalized absolute executable path, the same shape as
-// abstraction.rights Subject. It is an assertion by the party that bound native
-// Program proof: the holder for registered_by and audit entries of holder
-// calls, the designated enforcer for Use.subject. It contains no proof.
+// abstraction.rights
+// [Subject](https://openabstractions.github.io/reference.html#concept-rights.subject).
+// It is an assertion by the party that bound native
+// [Program](https://openabstractions.github.io/reference.html#concept-identity.listener-program-need)
+// proof: the holder for registered_by and audit entries of holder calls, the
+// designated enforcer for Use.subject. It contains no proof.
 export interface Subject {
   account: string;
   program: string;
@@ -446,6 +475,8 @@ export declare function encodeUse(v: Use): Uint8Array;
 
 export declare const executionGuarantees: readonly ["abstraction.download/credentials@1", "abstraction.download/credentials@2"];
 
+export declare const fromJson: <K extends keyof JsonRecords>(kind: K, data: Uint8Array) => JsonRecords[K];
+
 export declare function newApplyResult(): ApplyResult;
 
 export declare function newAuditEntry(): AuditEntry;
@@ -485,5 +516,7 @@ export declare function newSubject(): Subject;
 export declare function newUse(): Use;
 
 export declare const resourceActions: readonly ["abstraction.credentials/holder.manage", "abstraction.credentials/holder.read", "abstraction.credentials/apply", "abstraction.credentials/secret.read", "abstraction.credentials/secret.create", "abstraction.credentials/secret.rotate", "abstraction.credentials/secret.revoke", "abstraction.credentials/secret.metadata.read"];
+
+export declare const toJson: <K extends keyof JsonRecords>(kind: K, value: JsonRecords[K]) => Uint8Array;
 
 export {};

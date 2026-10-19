@@ -89,7 +89,9 @@ from ._codec import (
     encode_store_result,
     encode_subject,
     encode_use,
+    from_json,
     service_name,
+    to_json,
 )
 
 __all__ = [
@@ -179,7 +181,9 @@ __all__ = [
     "encode_store_result",
     "encode_subject",
     "encode_use",
+    "from_json",
     "service_name",
+    "to_json",
 ]
 
 # Report every class and function as a member of this package, so help(),

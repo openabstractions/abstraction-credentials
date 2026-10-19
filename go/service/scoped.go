@@ -214,12 +214,12 @@ type scopedHolderReceiver struct{ receiver }
 func (r *scopedHolderReceiver) Store(expected string, reg wire.Registration) (wire.StoreResult, error) {
 	subject, _, ok := r.caller()
 	if !ok {
-		zero(reg.Secret)
+		clear(reg.Secret)
 		return wire.StoreResult{Outcome: wire.StoreOutcomeForbidden}, nil
 	}
 	authorization, valid := r.scoped(subject, credentials.ActionSecretCreate, credentials.NamedSecretResourceProfile, reg.Name)
 	if !valid {
-		zero(reg.Secret)
+		clear(reg.Secret)
 		return wire.StoreResult{Outcome: wire.StoreOutcomeInvalid}, nil
 	}
 	result := r.host.holder.StoreScoped(subject, expected, reg, authorization)
@@ -233,12 +233,12 @@ func (r *scopedHolderReceiver) Store(expected string, reg wire.Registration) (wi
 func (r *scopedHolderReceiver) Rotate(expected string, rotation wire.Rotation) (wire.RotateResult, error) {
 	subject, _, ok := r.caller()
 	if !ok {
-		zero(rotation.Secret)
+		clear(rotation.Secret)
 		return wire.RotateResult{Outcome: wire.RotateOutcomeForbidden}, nil
 	}
 	authorization, valid := r.scoped(subject, credentials.ActionSecretRotate, credentials.NamedSecretResourceProfile, rotation.Name)
 	if !valid {
-		zero(rotation.Secret)
+		clear(rotation.Secret)
 		return wire.RotateResult{Outcome: wire.RotateOutcomeInvalid}, nil
 	}
 	return r.host.holder.RotateScoped(subject, expected, rotation, authorization), nil

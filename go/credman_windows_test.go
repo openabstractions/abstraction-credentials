@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -19,6 +20,199 @@ import (
 	wire "github.com/openabstractions/abstraction-credentials/go/abstraction/credentials/api"
 	"golang.org/x/sys/windows"
 )
+
+// Exercise CRED-B3 with native stores and owned state. Each interrupted start
+// keeps serving the marker's store, then the public startup entry completes
+// migration. The unique namespace cleanup verifies every native item is gone.
+func TestWindowsMigrationNativeExistingState(t *testing.T) {
+	for _, stopAt := range []string{"", stepCopy, stepVerify, stepPending, stepMarker, stepDelete, stepFinished} {
+		t.Run("interrupt="+stopAt, func(t *testing.T) {
+			old, err := NewCredentialManager()
+			if err != nil {
+				t.Fatal(err)
+			}
+			namespace, prefix := testNamespace(t, old)
+			dir := filepath.Join(t.TempDir(), "credentials")
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			h := open(t, Config{Backend: old, Namespace: namespace, StatePath: filepath.Join(dir, "holder.json")})
+			stored := h.Store(owner, "", registration("hf"))
+			if stored.Outcome != wire.StoreOutcomeStored {
+				t.Fatal(stored.Outcome)
+			}
+			key := h.storeKey(owner.Account, "hf", stored.Revision)
+			var reports []error
+			b, release := openWindowsStore(dir, namespace, windowsCredentialsConstructors{
+				credentialManager: NewCredentialManager, dpapiFile: NewDPAPIFileBackend,
+			}, func(step string) error {
+				if step == stopAt {
+					return errCrash
+				}
+				return nil
+			}, func(err error) { reports = append(reports, err) })
+			t.Cleanup(release)
+			active := open(t, Config{Backend: b, Namespace: namespace, StatePath: filepath.Join(dir, "holder.json")})
+			if got := active.Apply(context.Background(), use("hf", "huggingface.co"), permit("permitted")); got.Outcome != wire.ApplyOutcomeApplied || got.Headers["Authorization"] != "Bearer "+testSecret {
+				t.Fatalf("interrupted apply: %s", got.Outcome)
+			}
+			if strings.TrimSpace(markerWord(t, dir)) != b.Name() {
+				t.Fatal("served store differs from marker")
+			}
+			if stopAt == "" && len(reports) != 0 || stopAt != "" && len(reports) != 1 {
+				t.Fatalf("reports: %d", len(reports))
+			}
+			release()
+			b, release, err = OpenPlatformStore(dir, namespace, owner.Account, func(err error) { t.Error(err) })
+			t.Cleanup(release)
+			if err != nil || b.Name() != StoreWindowsDPAPIFile {
+				t.Fatalf("restart: %v %v", b, err)
+			}
+			if got, err := b.Get(key); err != nil || string(got) != testSecret {
+				t.Fatalf("native copied value: %v", err)
+			}
+			if left := testTargets(t, prefix); len(left) != 0 {
+				t.Fatalf("old store keeps %d items", len(left))
+			}
+			for _, path := range []string{windowsMigrationAttempt(dir), windowsMigrationPending(dir)} {
+				if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("migration note remains: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// Only the native read/free and the existing DPAPI canary hooks are scripted.
+// No Credential Manager item or DPAPI material is read or written.
+func TestCredentialManagerReadClassification(t *testing.T) {
+	savedRead, savedFree, savedSeal, savedUnseal := credentialRead, credentialFree, seal, unseal
+	t.Cleanup(func() { credentialRead, credentialFree, seal, unseal = savedRead, savedFree, savedSeal, savedUnseal })
+	for _, tc := range []struct {
+		name                   string
+		readErr                error
+		canaryFails            bool
+		sealFails, canaryWrong bool
+		blobSize               uint32
+		nilCredential, nilBlob bool
+		want                   error
+		canaries               int
+	}{
+		{name: "absent", readErr: windows.ERROR_NOT_FOUND, want: ErrNotFound},
+		{name: "no logon session", readErr: windows.ERROR_NO_SUCH_LOGON_SESSION, want: ErrUnavailable},
+		{name: "key state readable", readErr: nteBadKeyState, want: ErrNotFound, canaries: 1},
+		{name: "key state unreachable", readErr: nteBadKeyState, canaryFails: true, want: ErrUnavailable, canaries: 1},
+		{name: "canary seal fails", readErr: nteBadKeyState, sealFails: true, want: ErrUnavailable, canaries: 1},
+		{name: "canary differs", readErr: nteBadKeyState, canaryWrong: true, want: ErrUnavailable, canaries: 1},
+		{name: "password readable", readErr: windows.ERROR_INVALID_PASSWORD, want: ErrNotFound, canaries: 1},
+		{name: "password unreachable", readErr: windows.ERROR_INVALID_PASSWORD, canaryFails: true, want: ErrUnavailable, canaries: 1},
+		{name: "uncertain data error", readErr: windows.ERROR_INVALID_DATA, want: ErrUnavailable},
+		{name: "unknown failure", readErr: windows.ERROR_ACCESS_DENIED, want: ErrUnavailable},
+		{name: "empty blob", want: ErrUnavailable},
+		{name: "nil nonempty blob", blobSize: 3, nilBlob: true, want: ErrUnavailable},
+		{name: "nil credential", nilCredential: true, want: ErrUnavailable},
+		{name: "oversized blob", blobSize: credentialManagerMaxBlob + 1, want: ErrUnavailable},
+		{name: "valid bytes", blobSize: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			blob := []byte{1, 0, 255}
+			cred := &credentialW{CredentialBlobSize: tc.blobSize, CredentialBlob: &blob[0]}
+			if tc.nilBlob {
+				cred.CredentialBlob = nil
+			}
+			if tc.nilCredential {
+				cred = nil
+			}
+			reads, frees, canaries := 0, 0, 0
+			credentialRead = func(target *uint16, out **credentialW) error { reads++; *out = cred; return tc.readErr }
+			credentialFree = func(got *credentialW) {
+				frees++
+				if got != cred {
+					t.Fatal("freed another credential")
+				}
+			}
+			seal = func(data, entropy []byte) ([]byte, error) {
+				canaries++
+				if tc.sealFails {
+					return nil, nteBadKeyState
+				}
+				return []byte("inert sealed canary"), nil
+			}
+			unseal = func(data, entropy []byte) ([]byte, error) {
+				if tc.canaryFails {
+					return nil, nteBadKeyState
+				}
+				if tc.canaryWrong {
+					return []byte("inert mismatch"), nil
+				}
+				return []byte("openabstractions dpapi canary"), nil
+			}
+			got, err := (credentialManager{}).Get("inert/native-result")
+			if !errors.Is(err, tc.want) || (tc.want != nil && got != nil) || reads != 1 || canaries != tc.canaries {
+				t.Fatalf("Get=%v, reads=%d canaries=%d; want %v/%d", err, reads, canaries, tc.want, tc.canaries)
+			}
+			if tc.want == ErrUnavailable && errors.Is(err, ErrNotFound) {
+				t.Fatal("uncertain native result classified lost")
+			}
+			wantFree := 0
+			if tc.readErr == nil && cred != nil {
+				wantFree = 1
+			}
+			if frees != wantFree {
+				t.Fatalf("frees=%d want %d", frees, wantFree)
+			}
+			if tc.want == nil && (len(got) != 3 || got[0] != 1 || got[1] != 0 || got[2] != 255 || blob[0] != 0 || blob[2] != 0) {
+				t.Fatal("native bytes were not copied and cleared")
+			}
+		})
+	}
+}
+
+type credentialResultBackend struct{ *memoryBackend }
+
+func (b credentialResultBackend) Get(key string) ([]byte, error) {
+	return (credentialManager{}).Get(key)
+}
+
+func TestCredentialManagerEmptyBlobKeepsHolderActive(t *testing.T) {
+	savedRead, savedFree := credentialRead, credentialFree
+	t.Cleanup(func() { credentialRead, credentialFree = savedRead, savedFree })
+	store := credentialResultBackend{newMemory()}
+	mode := "readable"
+	credentialRead = func(target *uint16, out **credentialW) error {
+		if mode == "absent" {
+			return windows.ERROR_NOT_FOUND
+		}
+		if mode == "empty" {
+			*out = &credentialW{}
+			return nil
+		}
+		blob, err := store.memoryBackend.Get(windows.UTF16PtrToString(target))
+		if err != nil {
+			return windows.ERROR_NOT_FOUND
+		}
+		*out = &credentialW{CredentialBlobSize: uint32(len(blob)), CredentialBlob: &blob[0]}
+		return nil
+	}
+	credentialFree = func(*credentialW) {}
+	h := open(t, Config{Backend: store})
+	h.Store(owner, "", registration("hf"))
+	apply := func() wire.ApplyOutcome {
+		return h.Apply(context.Background(), use("hf", "huggingface.co"), permit("permitted")).Outcome
+	}
+	mode = "empty"
+	if got := apply(); got != wire.ApplyOutcomeUnavailable {
+		t.Fatalf("empty blob: %s", got)
+	}
+	mode = "readable"
+	if got := apply(); got != wire.ApplyOutcomeApplied {
+		t.Fatalf("record not kept: %s", got)
+	}
+	mode = "absent"
+	if got := apply(); got != wire.ApplyOutcomeLost {
+		t.Fatalf("genuine absence: %s", got)
+	}
+}
 
 // testTargets lists the generic credential target names under prefix.
 func testTargets(t *testing.T, prefix string) []string {

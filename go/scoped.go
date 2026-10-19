@@ -65,7 +65,7 @@ func readAuthorization(v AuthorizationOutcome) wire.SecretReadOutcome {
 // buffer belongs to the receiver, which must clear it after encoding/reply.
 func (h *Holder) ReadSecret(caller wire.Subject, name string, authorization ScopedAuthorization) wire.SecretReadResult {
 	refuse := func(v wire.SecretReadOutcome) wire.SecretReadResult { return wire.SecretReadResult{Outcome: v} }
-	if !validSubject(caller) || !namePattern.MatchString(name) {
+	if !validSubject(caller) || !ValidName(name) {
 		return refuse(wire.SecretReadOutcomeInvalid)
 	}
 	guard, admission := authorization.prepare()
@@ -97,7 +97,7 @@ func (h *Holder) ReadSecret(caller wire.Subject, name string, authorization Scop
 		return refuse(wire.SecretReadOutcomeUnavailable)
 	}
 	secret, err := backend.Get(r.Key)
-	defer zero(secret)
+	defer clear(secret)
 	// A backend wait can outlast a permit, recipient or deadline. Never release
 	// bytes or newly observed state after that authority changed.
 	if decision := runGuard(guard); decision != Authorized {
@@ -137,7 +137,7 @@ func (h *Holder) ReadSecret(caller wire.Subject, name string, authorization Scop
 // Metadata reads one saved name slot; it does not enumerate credentials.
 func (h *Holder) Metadata(caller wire.Subject, name string, authorization ScopedAuthorization) wire.MetadataReadResult {
 	refuse := func(v wire.MetadataReadOutcome) wire.MetadataReadResult { return wire.MetadataReadResult{Outcome: v} }
-	if !validSubject(caller) || !namePattern.MatchString(name) {
+	if !validSubject(caller) || !ValidName(name) {
 		return refuse(wire.MetadataReadOutcomeInvalid)
 	}
 	guard, admission := authorization.prepare()
@@ -203,7 +203,7 @@ func useEvidence(evidence []*Authorization) *Authorization {
 func (h *Holder) StoreScoped(caller wire.Subject, expected string, reg wire.Registration, authorization ScopedAuthorization) wire.StoreResult {
 	guard, admission := authorization.prepare()
 	if admission != Authorized {
-		zero(reg.Secret)
+		clear(reg.Secret)
 		if admission == AuthorizationDenied {
 			return wire.StoreResult{Outcome: wire.StoreOutcomeForbidden}
 		}
@@ -214,7 +214,7 @@ func (h *Holder) StoreScoped(caller wire.Subject, expected string, reg wire.Regi
 func (h *Holder) RotateScoped(caller wire.Subject, expected string, rotation wire.Rotation, authorization ScopedAuthorization) wire.RotateResult {
 	guard, admission := authorization.prepare()
 	if admission != Authorized {
-		zero(rotation.Secret)
+		clear(rotation.Secret)
 		if admission == AuthorizationDenied {
 			return wire.RotateResult{Outcome: wire.RotateOutcomeForbidden}
 		}

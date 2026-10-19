@@ -87,6 +87,63 @@ func TestDPAPIFileStore(t *testing.T) {
 	}
 }
 
+func TestDPAPIFileStoreReplaceWithHeldReader(t *testing.T) {
+	for _, releaseReader := range []bool{true, false} {
+		name := "persistent"
+		if releaseReader {
+			name = "released"
+		}
+		t.Run(name, func(t *testing.T) {
+			backend, dir := dpapiStore(t)
+			b := backend.(dpapiFile)
+			const key = "test/dpapi/replacement"
+			const prior = "prior synthetic value"
+			const replacement = "new synthetic value"
+			if err := b.Put(key, []byte(prior)); err != nil {
+				t.Fatal(err)
+			}
+			release := holdStateWithoutDeleteShare(t, b.path(key))
+			want := prior
+			if releaseReader {
+				result := make(chan error, 1)
+				go func() { result <- b.Put(key, []byte(replacement)) }()
+				// Observe the real Put's stage while the prior item is held.
+				deadline := time.Now().Add(2 * time.Second)
+				for len(itemFiles(t, dir)) == 1 && time.Now().Before(deadline) {
+					select {
+					case err := <-result:
+						t.Fatalf("Put returned before its destination reader released: %v", err)
+					case <-time.After(5 * time.Millisecond):
+					}
+				}
+				staged := len(itemFiles(t, dir)) == 2
+				time.Sleep(100 * time.Millisecond)
+				release()
+				if err := <-result; !staged || err != nil {
+					t.Fatalf("replacement after releasing reader: staged=%t, err=%v", staged, err)
+				}
+				want = replacement
+			} else {
+				started := time.Now()
+				if err := b.Put(key, []byte(replacement)); !errors.Is(err, ErrUnavailable) {
+					t.Fatalf("persistently held replacement: %v", err)
+				}
+				if elapsed := time.Since(started); elapsed < 500*time.Millisecond {
+					t.Fatalf("replacement returned before the retry budget: %v", elapsed)
+				}
+			}
+			got, err := b.Get(key)
+			defer clear(got)
+			if err != nil || string(got) != want {
+				t.Fatalf("unexpected replacement readback: %v", err)
+			}
+			if files := itemFiles(t, dir); len(files) != 1 || files[0] != filepath.Base(b.path(key)) {
+				t.Fatalf("unexpected files after replacement: %v", files)
+			}
+		})
+	}
+}
+
 // TestDPAPIFileStoreSealsToTheKey: an item file moved under another key's name
 // or damaged does not unseal there and reads ErrNotFound.
 func TestDPAPIFileStoreSealsToTheKey(t *testing.T) {

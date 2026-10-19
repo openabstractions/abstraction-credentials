@@ -97,6 +97,7 @@ func (r *recorder) ExchangeFrame(frame []byte) ([]byte, error) {
 }
 
 type fixture struct {
+	backend    *memory
 	endpoint   string
 	policy     *policy
 	designated atomic.Bool
@@ -138,7 +139,8 @@ func programEndpoint(t *testing.T) string {
 func start(t *testing.T) *fixture {
 	t.Helper()
 	f := &fixture{endpoint: programEndpoint(t), policy: &policy{rules: map[string]string{}}, errors: &bytes.Buffer{}}
-	holder, err := credentials.Open(credentials.Config{Backend: &memory{items: map[string][]byte{}}})
+	f.backend = &memory{items: map[string][]byte{}}
+	holder, err := credentials.Open(credentials.Config{Backend: f.backend})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,6 +192,107 @@ func start(t *testing.T) *fixture {
 }
 
 const secret = "hf_SERVICE_SECRET_5b9d2e71_EXAMPLE"
+
+func TestPublishedCredentialBoundsRemainMethodInvalid(t *testing.T) {
+	f := start(t)
+	stored := f.register(t, "alpha", secret)
+	f.backend.mu.Lock()
+	before := map[string]string{}
+	for key, value := range f.backend.items {
+		before[key] = string(value)
+	}
+	f.backend.mu.Unlock()
+	f.designated.Store(true)
+	f.policy.set(f.self.Program, credentials.ActionRead, credentials.ResourceAccount, "permitted")
+	f.policy.set(f.self.Program, credentials.ActionApply, "credential:alpha", "permitted")
+	valid := func() wire.Registration {
+		return wire.Registration{Name: "new", Kind: "bearer", Scope: wire.Scope{Targets: []string{"huggingface.co"}, Consumers: []string{"abstraction.download/http-execution@1"}}, Secret: []byte(secret)}
+	}
+	store := func(expected string, reg wire.Registration) string {
+		r, e := f.holder.Store(expected, reg)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return r.Outcome.String()
+	}
+	rotate := func(expected string, rotation wire.Rotation) string {
+		r, e := f.holder.Rotate(expected, rotation)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return r.Outcome.String()
+	}
+	revoke := func(expected, name string) string {
+		r, e := f.holder.Revoke(expected, name)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return r.Outcome.String()
+	}
+	apply := func(use wire.Use) string {
+		r, e := f.applier.Apply(use)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return r.Outcome.String()
+	}
+	cases := []struct {
+		name string
+		run  func() string
+	}{
+		{"revoke revision", func() string { return revoke(strings.Repeat("r", 129), "alpha") }},
+		{"revoke name", func() string { return revoke(stored.Revision, "!") }},
+		{"rotate revision", func() string {
+			return rotate(strings.Repeat("r", 129), wire.Rotation{Name: "alpha", Secret: []byte(secret)})
+		}},
+		{"store revision", func() string { return store(strings.Repeat("r", 129), valid()) }},
+		{"registration name", func() string { v := valid(); v.Name = "!"; return store("", v) }},
+		{"registration secret", func() string { v := valid(); v.Secret = bytes.Repeat([]byte("a"), 4097); return store("", v) }},
+		{"rotation name", func() string { return rotate(stored.Revision, wire.Rotation{Name: "!", Secret: []byte(secret)}) }},
+		{"rotation secret", func() string {
+			return rotate(stored.Revision, wire.Rotation{Name: "alpha", Secret: bytes.Repeat([]byte("a"), 4097)})
+		}},
+		{"scope consumers", func() string {
+			v := valid()
+			v.Scope.Consumers = nil
+			for i := 0; i < 9; i++ {
+				v.Scope.Consumers = append(v.Scope.Consumers, fmt.Sprintf("fixture/consumer%d@1", i))
+			}
+			return store("", v)
+		}},
+		{"scope targets", func() string {
+			v := valid()
+			v.Scope.Targets = nil
+			for i := 0; i < 17; i++ {
+				v.Scope.Targets = append(v.Scope.Targets, fmt.Sprintf("host%d.example", i))
+			}
+			return store("", v)
+		}},
+		{"use challenge", func() string { v := f.usage("alpha"); v.Challenge = strings.Repeat("a", 4097); return apply(v) }},
+		{"use name", func() string { return apply(f.usage("!")) }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.run(); got != "invalid" {
+				t.Fatalf("legacy method outcome %s", got)
+			}
+		})
+	}
+	page, err := f.holder.List("", 64)
+	if err != nil || page.Outcome != wire.PageOutcomePage || len(page.Records) != 1 || page.Records[0].Name != "alpha" || page.Records[0].Revision != stored.Revision {
+		t.Fatalf("invalid input mutated holder: %+v %v", page, err)
+	}
+	f.backend.mu.Lock()
+	defer f.backend.mu.Unlock()
+	if len(before) != len(f.backend.items) {
+		t.Fatal("invalid input changed backend membership")
+	}
+	for key, value := range f.backend.items {
+		if before[key] != string(value) {
+			t.Fatal("invalid input changed backend bytes")
+		}
+	}
+}
 
 func (f *fixture) register(t *testing.T, name, value string) wire.StoreResult {
 	t.Helper()
@@ -286,6 +389,15 @@ func TestApplierServesOnlyDesignatedEnforcers(t *testing.T) {
 	if r, _ := typed.Apply(ctx, app); r.Outcome != wire.ApplyOutcomeApplied {
 		t.Fatalf("subject with an apply rule: %s", r.Outcome)
 	}
+	forgedRemote := app
+	forgedRemote.Subject.Program = "remote:" + strings.Repeat("a", 64)
+	f.policy.set(forgedRemote.Subject.Program, credentials.ActionApply, credentials.ResourceFor("hf"), "permitted")
+	if r, _ := typed.Apply(ctx, forgedRemote); r.Outcome != wire.ApplyOutcomeForbidden || len(r.Headers) != 0 {
+		t.Fatalf("native IPC fabricated remote subject: %+v", r)
+	}
+	if r, _ := typed.Check(ctx, forgedRemote); r.Outcome != wire.ApplyOutcomeForbidden {
+		t.Fatalf("native IPC fabricated remote Check: %+v", r)
+	}
 	f.policy.down.Store(true)
 	if r, _ := typed.Apply(ctx, app); r.Outcome != wire.ApplyOutcomeUnavailable || r.Headers != nil {
 		t.Fatalf("decision point down: %s", r.Outcome)
@@ -319,6 +431,16 @@ func TestNoReplyCarriesSecretBytesToAnApplication(t *testing.T) {
 	rng := rand.New(rand.NewSource(20260916))
 	cursor := ""
 	auditCursor := ""
+	// Published legacy codecs carry these inputs to the semantic owner. The
+	// newer scoped profile has separate early bounds; legacy replies, including
+	// method invalid, must all remain free of secret values.
+	refused := 0
+	note := func(err error) {
+		var r *wire.Refusal
+		if errors.As(err, &r) && r.Word == "bad_value" {
+			refused++
+		}
+	}
 	for i := 0; i < 400; i++ {
 		name := names[rng.Intn(len(names))]
 		switch rng.Intn(8) {
@@ -338,6 +460,7 @@ func TestNoReplyCarriesSecretBytesToAnApplication(t *testing.T) {
 				kind, header = "header", "X-Api-Key"
 			}
 			r, err := f.holder.Store("", wire.Registration{Name: name, Kind: kind, Header: header, Scope: wire.Scope{Targets: []string{"huggingface.co"}, Consumers: consumers[:1+rng.Intn(3)]}, Secret: value})
+			note(err)
 			if err == nil && r.Outcome == wire.StoreOutcomeStored {
 				revisions[name] = r.Revision
 			}
@@ -345,12 +468,14 @@ func TestNoReplyCarriesSecretBytesToAnApplication(t *testing.T) {
 			value := []byte(fmt.Sprintf("rotated-%d-%x", i, rng.Uint64()))
 			secrets = append(secrets, append([]byte(nil), value...))
 			r, err := f.holder.Rotate(revisions[name], wire.Rotation{Name: name, Secret: value})
+			note(err)
 			if err == nil && r.Outcome == wire.RotateOutcomeRotated {
 				revisions[name] = r.Revision
 			}
 		case 3:
 			if rng.Intn(3) == 0 {
-				f.holder.Revoke(revisions[name], name)
+				_, err := f.holder.Revoke(revisions[name], name)
+				note(err)
 			}
 		case 4:
 			p, err := f.holder.List(cursor, int64(1+rng.Intn(3)))
@@ -366,9 +491,11 @@ func TestNoReplyCarriesSecretBytesToAnApplication(t *testing.T) {
 			u := wire.Use{Subject: f.self, Consumer: consumers[rng.Intn(len(consumers))], Name: name, Target: targets[rng.Intn(len(targets))]}
 			f.policy.set(f.self.Program, credentials.ActionApply, credentials.ResourceFor(name), []string{"permitted", "denied", "not_granted"}[rng.Intn(3)])
 			if rng.Intn(2) == 0 {
-				f.applier.Check(u)
+				_, err := f.applier.Check(u)
+				note(err)
 			} else {
 				r, err := f.applier.Apply(u)
+				note(err)
 				if err == nil && (r.Outcome != wire.ApplyOutcomeForbidden || r.Headers != nil) {
 					t.Fatalf("application apply: %+v", r.Outcome)
 				}
@@ -381,8 +508,8 @@ func TestNoReplyCarriesSecretBytesToAnApplication(t *testing.T) {
 			stored++
 		}
 	}
-	if stored == 0 || len(f.recorded.replies) < 300 {
-		t.Fatalf("fuzz exercised too little: %d stored names, %d replies", stored, len(f.recorded.replies))
+	if stored == 0 || refused != 0 || len(f.recorded.replies) < 300 {
+		t.Fatalf("legacy fuzz coverage: %d stored names, %d replies, %d unexpected codec refusals", stored, len(f.recorded.replies), refused)
 	}
 	f.errorsMu.Lock()
 	reported := f.errors.Bytes()

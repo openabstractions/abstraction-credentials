@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +20,163 @@ func scopedPermit() ScopedAuthorization {
 }
 func scopedDenied() ScopedAuthorization {
 	return ScopedAuthorization{Admit: func() Authorization { return Authorization{Outcome: AuthorizationDenied} }, Check: func(string) Authorization { panic("denied admission reached quiet check") }}
+}
+
+// These records use the published codec language; Holder owns semantic refusal.
+func TestPublishedScopedInputsKeepValidationAndNoEffects(t *testing.T) {
+	c := &clock{time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)}
+	for name, change := range map[string]func(*wire.Registration){
+		"empty name":      func(v *wire.Registration) { v.Name = "" },
+		"bad name":        func(v *wire.Registration) { v.Name = "!" },
+		"long name":       func(v *wire.Registration) { v.Name = strings.Repeat("a", 65) },
+		"empty kind":      func(v *wire.Registration) { v.Kind = "" },
+		"long kind":       func(v *wire.Registration) { v.Kind = strings.Repeat("a", 135) },
+		"empty targets":   func(v *wire.Registration) { v.Scope.Targets = []string{} },
+		"many targets":    func(v *wire.Registration) { v.Scope.Targets = make([]string, 17) },
+		"empty target":    func(v *wire.Registration) { v.Scope.Targets = []string{""} },
+		"long target":     func(v *wire.Registration) { v.Scope.Targets = []string{strings.Repeat("a", 254)} },
+		"empty consumers": func(v *wire.Registration) { v.Scope.Consumers = []string{} },
+		"many consumers":  func(v *wire.Registration) { v.Scope.Consumers = make([]string, 9) },
+		"empty consumer":  func(v *wire.Registration) { v.Scope.Consumers = []string{""} },
+		"long consumer":   func(v *wire.Registration) { v.Scope.Consumers = []string{strings.Repeat("a", 135)} },
+		"long header":     func(v *wire.Registration) { v.Kind = "header"; v.Header = strings.Repeat("a", 65) },
+		"empty secret":    func(v *wire.Registration) { v.Secret = []byte{} },
+		"long secret":     func(v *wire.Registration) { v.Secret = make([]byte, 4097) },
+		"control secret":  func(v *wire.Registration) { v.Secret = []byte("a\nb") },
+		"expired":         func(v *wire.Registration) { v.Expires = "2026-09-15T11:00:00Z" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := newMemory()
+			h := open(t, Config{Backend: m, Now: c.Now})
+			v := registration("alpha")
+			change(&v)
+			data, err := wire.ToJSON(v)
+			if err != nil {
+				t.Fatal("published writer refused semantic input")
+			}
+			var decoded wire.Registration
+			if err := wire.FromJSON(data, &decoded); err != nil {
+				t.Fatal("published reader refused semantic input")
+			}
+			if got := h.StoreScoped(owner, "", decoded, scopedPermit()); got.Outcome != wire.StoreOutcomeInvalid || len(m.items) != 0 {
+				t.Fatal("semantic input changed store or lost typed invalid")
+			}
+		})
+	}
+	m := &countedBackend{memoryBackend: newMemory()}
+	h := open(t, Config{Backend: m, Now: c.Now})
+	stored := h.StoreScoped(owner, "", registration("alpha"), scopedPermit())
+	if stored.Outcome != wire.StoreOutcomeStored {
+		t.Fatal("empty create revision refused")
+	}
+	for _, expected := range []string{"", strings.Repeat("r", 129)} {
+		if h.RotateScoped(owner, expected, wire.Rotation{Name: "alpha", Secret: []byte("replacement")}, scopedPermit()).Outcome != wire.RotateOutcomeInvalid {
+			t.Fatal("rotation revision validation lost")
+		}
+		if h.RevokeScoped(owner, expected, "alpha", scopedPermit()).Outcome != wire.RevokeOutcomeInvalid {
+			t.Fatal("revocation revision validation lost")
+		}
+	}
+	if h.StoreScoped(owner, strings.Repeat("r", 129), registration("other"), scopedPermit()).Outcome != wire.StoreOutcomeInvalid {
+		t.Fatal("store revision maximum lost")
+	}
+	for name, change := range map[string]func(*wire.Use){
+		"name":             func(v *wire.Use) { v.Name = "!" },
+		"consumer":         func(v *wire.Use) { v.Consumer = "" },
+		"target":           func(v *wire.Use) { v.Target = "" },
+		"challenge length": func(v *wire.Use) { v.Challenge = strings.Repeat("a", 4097) },
+		"seed challenge":   func(v *wire.Use) { v.Challenge = "unexpected" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			v := use("alpha", "huggingface.co")
+			change(&v)
+			if h.CheckScoped(context.Background(), v, scopedPermit()).Outcome != wire.ApplyOutcomeInvalid || h.ApplyScoped(context.Background(), v, scopedPermit()).Outcome != wire.ApplyOutcomeInvalid || m.gets.Load() != 0 {
+				t.Fatal("invalid use read a secret or lost typed refusal")
+			}
+		})
+	}
+	if len(m.items) != 1 || h.Metadata(owner, "alpha", scopedPermit()).Current.Revision != stored.Revision {
+		t.Fatal("invalid edits changed current registration")
+	}
+	if h.CheckScoped(context.Background(), use("alpha", "huggingface.co"), scopedPermit()).Outcome != wire.ApplyOutcomeApplied {
+		t.Fatal("empty optional challenge refused")
+	}
+}
+
+type publishedHolderFixture struct{ holder *Holder }
+
+func (f publishedHolderFixture) Store(expected string, v wire.Registration) (wire.StoreResult, error) {
+	return f.holder.StoreScoped(owner, expected, v, scopedPermit()), nil
+}
+func (f publishedHolderFixture) Rotate(expected string, v wire.Rotation) (wire.RotateResult, error) {
+	return f.holder.RotateScoped(owner, expected, v, scopedPermit()), nil
+}
+func (f publishedHolderFixture) Revoke(expected, name string) (wire.RevokeResult, error) {
+	return f.holder.RevokeScoped(owner, expected, name, scopedPermit()), nil
+}
+func (f publishedHolderFixture) Metadata(name string) (wire.MetadataReadResult, error) {
+	return f.holder.Metadata(owner, name, scopedPermit()), nil
+}
+
+type publishedApplierFixture struct{ holder *Holder }
+
+func (f publishedApplierFixture) Check(v wire.Use) (wire.CheckResult, error) {
+	return f.holder.CheckScoped(context.Background(), v, scopedPermit()), nil
+}
+func (f publishedApplierFixture) Apply(v wire.Use) (wire.ApplyResult, error) {
+	return f.holder.ApplyScoped(context.Background(), v, scopedPermit()), nil
+}
+
+func TestPublishedScopedRequestFramesDecodeAndReachHolder(t *testing.T) {
+	// Captured from the actual generated Go client at accounted b7457dbd
+	// (credentials Go v0.3.1). Base64 preserves each complete frame's bytes.
+	// The local fixture supplies an asserted owner/permit; native binding and
+	// permission routes keep their separate unchanged receiving owners.
+	raw, err := os.ReadFile("testdata/published-0.3.1-requests.base64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &countedBackend{memoryBackend: newMemory()}
+	h := open(t, Config{Backend: m})
+	holder := &wire.ScopedHolderDispatcher{Handler: publishedHolderFixture{h}}
+	applier := &wire.ScopedApplierDispatcher{Handler: publishedApplierFixture{h}}
+	lines := strings.Fields(string(raw))
+	if len(lines) != 6 {
+		t.Fatal("published request roster changed")
+	}
+	for i, line := range lines {
+		frame, err := base64.StdEncoding.DecodeString(line)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var reply []byte
+		if i < 4 {
+			reply, err = holder.ExchangeFrame(frame)
+		} else {
+			reply, err = applier.ExchangeFrame(frame)
+		}
+		if err != nil {
+			t.Fatal("published frame refused before Holder")
+		}
+		var result struct {
+			Ok      bool `json:"ok"`
+			Payload struct {
+				Value struct {
+					Outcome string `json:"outcome"`
+				} `json:"value"`
+			} `json:"payload"`
+		}
+		if json.Unmarshal(reply, &result) != nil || !result.Ok {
+			t.Fatal("published frame became a decoder error")
+		}
+		want := "invalid"
+		if i == 0 {
+			want = "stored"
+		}
+		if result.Payload.Value.Outcome != want || len(m.items) != 1 || m.gets.Load() != 0 {
+			t.Fatal("published frame lost typed refusal or changed secret state")
+		}
+	}
 }
 
 type countedBackend struct {
@@ -65,7 +224,7 @@ func TestScopedReadStateHiddenBehindPermission(t *testing.T) {
 	if !bytes.Equal(r.Value.Secret, []byte(testSecret)) {
 		t.Fatal("wrong value returned")
 	}
-	zero(r.Value.Secret)
+	clear(r.Value.Secret)
 }
 
 func TestScopedCollectionExcludesExistingAndTombstonedLocalKey(t *testing.T) {
@@ -182,7 +341,7 @@ func TestScopedReadCurrentStateAfterAdmissionWait(t *testing.T) {
 				if r.Value == nil || r.Value.Revision != wantRevision {
 					t.Fatal("returned stale slot revision")
 				}
-				zero(r.Value.Secret)
+				clear(r.Value.Secret)
 			} else if r.Value != nil || m.gets.Load() != 0 {
 				t.Fatal("terminal record read/exported")
 			}
@@ -246,7 +405,7 @@ func TestScopedReadSecretFreeAuditStateAndErrors(t *testing.T) {
 	if r.Value == nil {
 		t.Fatal("read failed")
 	}
-	zero(r.Value.Secret)
+	clear(r.Value.Secret)
 	m.failure = errors.New("backend revealed " + testSecret)
 	if r := h.ReadSecret(owner, "alpha", scopedPermit()); r.Outcome != wire.SecretReadOutcomeUnavailable || r.Value != nil {
 		t.Fatal("backend failure exposed value")

@@ -29,7 +29,7 @@ var ErrCredentialTarget = errors.New("credentials: invalid credential target")
 // PrepareCredentialTarget encodes one validated name slot in the owning wire
 // format. Account and requester program remain receiver-bound evidence.
 func PrepareCredentialTarget(name string) ([]byte, error) {
-	if !namePattern.MatchString(name) {
+	if !ValidName(name) {
 		return nil, ErrCredentialTarget
 	}
 	return wire.EncodeCredentialResource(&wire.CredentialResource{Name: name}), nil
@@ -43,7 +43,7 @@ func DecodeCredentialTarget(target []byte) (wire.CredentialResource, error) {
 		return wire.CredentialResource{}, ErrCredentialTarget
 	}
 	v, err := wire.DecodeCredentialResource(target)
-	if err != nil || v == nil || !namePattern.MatchString(v.Name) || !bytes.Equal(target, wire.EncodeCredentialResource(v)) {
+	if err != nil || v == nil || !ValidName(v.Name) || !bytes.Equal(target, wire.EncodeCredentialResource(v)) {
 		return wire.CredentialResource{}, ErrCredentialTarget
 	}
 	return *v, nil
@@ -53,7 +53,7 @@ func DecodeCredentialTarget(target []byte) (wire.CredentialResource, error) {
 // name validator. The receiving subject binds account and program separately.
 func ParseResource(resource string) (wire.CredentialResource, bool) {
 	name, ok := strings.CutPrefix(resource, "credential:")
-	if !ok || !namePattern.MatchString(name) {
+	if !ok || !ValidName(name) {
 		return wire.CredentialResource{}, false
 	}
 	return wire.CredentialResource{Name: name}, true

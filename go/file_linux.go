@@ -95,7 +95,7 @@ func (b fileBackend) Get(key string) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	if len(secret) == 0 || len(secret) > MaxSecretBytes {
-		zero(secret)
+		clear(secret)
 		return nil, ErrNotFound
 	}
 	return secret, nil
