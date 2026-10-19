@@ -174,27 +174,22 @@ are separate from real-account, hosted, macOS, and installed acceptance.
 ```console
 openabstractions credentials add openrouter \
   --target openrouter.ai \
-  --for abstraction.inference/chat@1 \
-  --for abstraction.inference/embed@1 \
-  --for abstraction.inference/transcription@1 \
-  --for abstraction.inference/speech@1 \
-  --for abstraction.inference/image@1 \
-  --for abstraction.inference/live@1 \
-  --for abstraction.router/router@1 \
+  --for inference \
   --use-by /absolute/path/to/application \
   --from-stdin
 ```
 
 `--target` covers that host and its subdomains. `--for` names every service
-contract allowed to apply the credential; a contract name ends in `@1` and is
-not a rights action (`abstraction.router/route`) or resource
-(`abstraction.router/routes`), which the rights layer spells without the
-version. Naming only `chat@1` leaves the other inference modalities unable
-to apply the credential (`/v1/embeddings` among them); the six inference
-`--for` entries above cover chat, embed, transcription, speech, image and
-live (CONTRACT.md's Consumers table). `--use-by` creates the exact-program
-apply rule for the application. Repeat each option when the scope contains more
-than one value.
+contract allowed to apply the credential. `--for inference` names the six
+inference modalities (chat, embed, transcription, speech, image and live) and
+the router's hosted model listing, the rows `openabstractions credentials
+--help` stars. A single contract is spelled with its version, such as
+`--for abstraction.inference/chat@1`; the rights layer spells actions
+(`abstraction.router/route`) and resources (`abstraction.router/routes`)
+without it. Naming only `chat@1` leaves the other modalities unable to apply
+the credential (`/v1/embeddings` among them). `--use-by` creates the
+exact-program apply rule for the application. Repeat each option when the
+scope contains more than one value.
 
 The application request now carries only `openrouter`. A hosted model server
 can reference the same name:

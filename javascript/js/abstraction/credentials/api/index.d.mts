@@ -389,7 +389,7 @@ export interface Use {
   challenge: string;
 }
 
-export declare const consumers: readonly ["abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"];
+export declare const consumers: readonly ["abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1", "abstraction.inference/embed@1", "abstraction.inference/transcription@1", "abstraction.inference/speech@1", "abstraction.inference/image@1", "abstraction.inference/live@1", "abstraction.router/router@1"];
 
 export declare const credentialKinds: readonly ["bearer", "header"];
 

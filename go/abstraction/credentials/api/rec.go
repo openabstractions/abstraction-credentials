@@ -4,6 +4,8 @@ package api
 
 import "time"
 
+import "runtime/debug"
+
 type Raw = string
 
 func escByte(out []byte, c byte) []byte {
@@ -1771,7 +1773,7 @@ var ResourceActions = []string{"abstraction.credentials/holder.manage", "abstrac
 
 var ExecutionGuarantees = []string{"abstraction.download/credentials@1", "abstraction.download/credentials@2"}
 
-var Consumers = []string{"abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"}
+var Consumers = []string{"abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1", "abstraction.inference/embed@1", "abstraction.inference/transcription@1", "abstraction.inference/speech@1", "abstraction.inference/image@1", "abstraction.inference/live@1", "abstraction.router/router@1"}
 
 // Account identifier and normalized absolute executable path, the same shape as
 // abstraction.rights
@@ -9716,6 +9718,23 @@ func serviceReply(v *oaServiceFrame, payload Raw, err error) (frame []byte, outE
 	return frame, nil
 }
 
+// handlerPanic writes a recovered handler panic and its stack to standard error.
+func handlerPanic(service, method string, p interface{}) {
+	value := "a value that is neither a string nor an error"
+	func() {
+		defer func() { _ = recover() }()
+		switch v := p.(type) {
+		case string:
+			value = v
+		case error:
+			value = v.Error()
+		case interface{ String() string }:
+			value = v.String()
+		}
+	}()
+	print(service, " ", method, ": handler panic: ", value, "\n", string(debug.Stack()))
+}
+
 // EndpointContract is abstraction.facade/endpoint@1, which every dispatcher
 // answers beside its own service.
 const EndpointContract = "abstraction.facade/endpoint@1"
@@ -9923,7 +9942,8 @@ func ServeEndpointRemote(frame []byte, program, version string, admit func(contr
 			return &ServiceError{Code: "forbidden", Message: "remote admission required"}
 		}
 		defer func() {
-			if recover() != nil {
+			if p := recover(); p != nil {
+				handlerPanic(v.Service, v.Method+" admission", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}()
@@ -10381,6 +10401,7 @@ func (d *HolderDispatcher) invokeStore(args *oaHolderStoreArguments) (payload Ra
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@1", "Store", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -10413,6 +10434,7 @@ func (d *HolderDispatcher) invokeRotate(args *oaHolderRotateArguments) (payload 
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@1", "Rotate", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -10445,6 +10467,7 @@ func (d *HolderDispatcher) invokeRevoke(args *oaHolderRevokeArguments) (payload 
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@1", "Revoke", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -10477,6 +10500,7 @@ func (d *HolderDispatcher) invokeList(args *oaHolderListArguments) (payload Raw,
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@1", "List", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -10509,6 +10533,7 @@ func (d *HolderDispatcher) invokeAudit(args *oaHolderAuditArguments) (payload Ra
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@1", "Audit", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -10750,6 +10775,7 @@ func (d *ApplierDispatcher) invokeCheck(args *oaApplierCheckArguments) (payload 
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/applier@1", "Check", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -10782,6 +10808,7 @@ func (d *ApplierDispatcher) invokeApply(args *oaApplierApplyArguments) (payload 
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/applier@1", "Apply", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -10972,6 +10999,7 @@ func (d *SecretReaderDispatcher) invokeRead(args *oaSecretReaderReadArguments) (
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/reader@1", "Read", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -11343,6 +11371,7 @@ func (d *ScopedHolderDispatcher) invokeStore(args *oaScopedHolderStoreArguments)
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@2", "Store", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -11375,6 +11404,7 @@ func (d *ScopedHolderDispatcher) invokeRotate(args *oaScopedHolderRotateArgument
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@2", "Rotate", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -11407,6 +11437,7 @@ func (d *ScopedHolderDispatcher) invokeRevoke(args *oaScopedHolderRevokeArgument
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@2", "Revoke", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -11439,6 +11470,7 @@ func (d *ScopedHolderDispatcher) invokeMetadata(args *oaScopedHolderMetadataArgu
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/holder@2", "Metadata", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -11688,6 +11720,7 @@ func (d *ScopedApplierDispatcher) invokeCheck(args *oaScopedApplierCheckArgument
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/applier@2", "Check", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
@@ -11720,6 +11753,7 @@ func (d *ScopedApplierDispatcher) invokeApply(args *oaScopedApplierApplyArgument
 			if _, ok := p.(*Refusal); ok {
 				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
+				handlerPanic("abstraction.credentials/applier@2", "Apply", p)
 				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}

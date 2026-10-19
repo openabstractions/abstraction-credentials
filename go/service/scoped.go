@@ -289,6 +289,7 @@ func (r *scopedApplierReceiver) Apply(use wire.Use) (wire.ApplyResult, error) {
 	return r.host.holder.ApplyScoped(r.ctx, use, authorization), nil
 }
 func (r *scopedApplierReceiver) enforced(use wire.Use) credentials.ScopedAuthorization {
+	//unchecked: Check and Apply refuse a name PrepareCredentialTarget rejects before they call enforced
 	target, _ := credentials.PrepareCredentialTarget(use.Name)
 	enforcer, _, ok := r.caller()
 	op := Operation{Action: credentials.ActionApply, Profile: credentials.ScopedUseResourceProfile, Target: target}

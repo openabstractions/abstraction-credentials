@@ -197,8 +197,9 @@ states that the list is a seed, not a closed one.
 | `abstraction.inference/live@1` | each outgoing request to a hosted live-audio server |
 | `abstraction.router/router@1` | each model listing the router requests from a hosted server that names a credential |
 
-The generated wire seed `consumers` (`credentials.thrift`) lags this table;
-"Not built" names the rows it lacks.
+The generated wire seed `consumers` (`credentials.thrift`) holds every row of
+this table. `openabstractions credentials add --for inference` names the six
+inference rows and the router row.
 
 A consuming service outside the seed uses its own `<owner>/<name>@<n>` wire
 service name. The receiving host's enforcer designation decides which
@@ -307,13 +308,10 @@ invisible to another account's `List`, `Audit` or `Apply`.
 
 ## Not built
 
-- The generated `consumers` seed in `credentials.thrift` lacks
-  `abstraction.inference/embed@1`, `abstraction.inference/transcription@1`,
-  `abstraction.inference/speech@1`, `abstraction.inference/image@1`,
-  `abstraction.inference/live@1` and `abstraction.router/router@1`. Repair
-  row: TODO.md, W1-23a.
 - The `SecureStore` enum in `credentials.thrift` lacks `windows-dpapi-file`
-  and `macos-login-keychain`. Repair row: TODO.md, W1-23a.
+  and `macos-login-keychain`. Repair ticket:
+  `backlog/credentials-consumers-seed-and-securestore-enum-lag-the-source.md`
+  (0.9.0).
 
 ## Platform stores
 

@@ -552,7 +552,7 @@ inline const std::vector<std::string> kResourceActions = {"abstraction.credentia
 
 inline const std::vector<std::string> kExecutionGuarantees = {"abstraction.download/credentials@1", "abstraction.download/credentials@2"};
 
-inline const std::vector<std::string> kConsumers = {"abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1"};
+inline const std::vector<std::string> kConsumers = {"abstraction.download/http-execution@1", "abstraction.model/resolver@1", "abstraction.inference/chat@1", "abstraction.inference/embed@1", "abstraction.inference/transcription@1", "abstraction.inference/speech@1", "abstraction.inference/image@1", "abstraction.inference/live@1", "abstraction.router/router@1"};
 
 // Account identifier and normalized absolute executable path, the same shape as
 // abstraction.rights

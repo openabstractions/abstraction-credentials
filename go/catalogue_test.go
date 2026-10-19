@@ -40,8 +40,8 @@ var quoted = regexp.MustCompile(`"([^"]+)"`)
 // TestContractConsumersNameEveryDeclaredConsumer: every credential consumer
 // a module of the private tree declares is a row of the Consumers table
 // (CRED-R1), and it is either in the generated wire seed `Consumers` or
-// named in "Not built" as a row that seed lacks. When W1-23a regenerates
-// the seed, the "Not built" entry can go.
+// named in "Not built" as a row that seed lacks. The seed holds every row
+// since 0.8.1.
 func TestContractConsumersNameEveryDeclaredConsumer(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	if _, err := os.Stat(filepath.Join(root, "openabstractions-flat")); err != nil {
@@ -107,8 +107,10 @@ var storeConstant = regexp.MustCompile(`(?m)^\s*(Store[A-Za-z0-9]+)\s*=\s*"([^"]
 // TestContractNamesEveryStoreWord: every Store* word backend.go declares is
 // either a standard `SecureStore` word with a secure_store row, or a row
 // marked as a provider word that "Not built" names as missing from the
-// `SecureStore` enum. When W1-23a adds the provider words to the enum, the
-// standard branch takes them and the provider-word branch goes.
+// `SecureStore` enum. When the 0.9.0 ticket
+// credentials-consumers-seed-and-securestore-enum-lag-the-source adds the
+// provider words to the enum, the standard branch takes them and the
+// provider-word branch goes.
 func TestContractNamesEveryStoreWord(t *testing.T) {
 	b, err := os.ReadFile("backend.go")
 	if err != nil {
